@@ -6,13 +6,13 @@
 
 **Feature:** List, info, and restore commands.
 
-**Story 5:** Implement support commands to pass all 19 tests.
+**Story 5:** Implement support commands to pass all 22 tests.
 
 **Working Directory:** `/Users/leemoore/code/agent-cli-tools/oc-context-cleaner`
 
 **Prerequisites:**
 - Story 5 Skeleton+Red complete
-- 19 support command tests failing
+- 22 support command tests failing
 
 ## Task
 
@@ -40,10 +40,10 @@ export function formatSessionListHuman(sessions: SessionIndexEntry[]): string {
   for (const session of sessions) {
     const id = truncateSessionId(session.sessionId);
     const time = formatRelativeTime(session.updatedAt);
-    const label = session.displayName || session.label || "";
+    const projectPath = session.projectPath || session.cwd || "";
 
-    if (label) {
-      lines.push(`  ${id}  ${time}  ${label}`);
+    if (projectPath) {
+      lines.push(`  ${id}  ${time}  ${projectPath}`);
     } else {
       lines.push(`  ${id}  ${time}`);
     }
@@ -138,7 +138,7 @@ import { getSessionsSortedByTime } from "../io/session-index-reader.js";
 import { listAvailableAgents, agentExists } from "../io/session-discovery.js";
 import { resolveAgentId } from "../io/paths.js";
 import { formatSessionListHuman, formatSessionListJson } from "../output/list-formatter.js";
-import { AgentNotFoundError, OccError } from "../errors.js";
+import { AgentNotFoundError } from "../errors.js";
 
 export const listCommand = defineCommand({
   meta: {
@@ -216,7 +216,7 @@ import { resolveSessionId } from "../io/session-discovery.js";
 import { readSessionFile, getSessionFileStats } from "../io/session-file-reader.js";
 import { getSessionPath, resolveAgentId } from "../io/paths.js";
 import { formatSessionInfoHuman, formatSessionInfoJson } from "../output/info-formatter.js";
-import type { SessionInfo, MessageEntry, ToolCallBlock } from "../types/index.js";
+import type { SessionInfo, MessageEntry } from "../types/index.js";
 import { OccError } from "../errors.js";
 
 export const infoCommand = defineCommand({
@@ -336,9 +336,9 @@ Replace stubs in `src/commands/restore-command.ts`:
 ```typescript
 import { defineCommand } from "citty";
 import { resolveSessionId } from "../io/session-discovery.js";
-import { restoreFromBackup, findLatestBackup } from "../core/backup-manager.js";
+import { restoreFromBackup } from "../core/backup-manager.js";
 import { resolveAgentId } from "../io/paths.js";
-import { OccError, RestoreError } from "../errors.js";
+import { RestoreError } from "../errors.js";
 
 export const restoreCommand = defineCommand({
   meta: {
@@ -391,7 +391,7 @@ npm test
 
 **Expected:**
 - Typecheck passes
-- All 57 tests pass
+- All 64 tests pass
 
 ## Done When
 
@@ -401,4 +401,4 @@ npm test
 - [ ] `src/commands/info-command.ts` fully implemented
 - [ ] `src/commands/restore-command.ts` fully implemented
 - [ ] `npm run typecheck` passes
-- [ ] `npm test` passes (57 tests)
+- [ ] `npm test` passes (64 tests)

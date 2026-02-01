@@ -15,6 +15,11 @@
 - IO layer implemented
 - Core algorithm working
 
+**Available Helpers from Prior Stories:**
+- `getSessionFileStats` from `src/io/session-file-reader.ts` (Story 2)
+- `isMessageEntry` from `src/core/session-parser.ts` (Story 1)
+- `getToolCallIds` from `src/core/turn-boundary-calculator.ts` (Story 1)
+
 ## Reference Documents
 
 - Tech Design: `docs/tech-design.md` (Flow 1: Edit Session, Backup Manager)
@@ -355,11 +360,30 @@ describe("edit-command", () => {
   it("failed edit leaves original unchanged", async () => {
     const originalContent = vol.readFileSync(sessionPath, "utf-8");
 
-    // Create a scenario that will fail - remove write permissions
-    // Since memfs doesn't support permissions, we'll test the pattern differently
-    // by checking that backup exists if edit partially completed
-    // For now, verify the atomic pattern exists in implementation
-    expect(true).toBe(true); // Placeholder - verify pattern in code review
+    // Mock writeSessionFile to throw after backup is created
+    const { writeSessionFile } = await import("../../src/io/session-file-writer.js");
+    const writeSessionFileSpy = vi.spyOn(
+      await import("../../src/io/session-file-writer.js"),
+      "writeSessionFile"
+    ).mockRejectedValueOnce(new Error("Simulated write failure"));
+
+    try {
+      await executeEdit({
+        sessionId: testSessionId,
+        agentId: testAgentId,
+        toolRemoval: { preset: "default" },
+        outputFormat: "human",
+        verbose: false,
+      });
+    } catch {
+      // Expected to throw
+    }
+
+    // Verify original file is unchanged
+    const afterContent = vol.readFileSync(sessionPath, "utf-8");
+    expect(afterContent).toBe(originalContent);
+
+    writeSessionFileSpy.mockRestore();
   });
 
   // TC-3.5a: JSON output complete
@@ -525,6 +549,8 @@ describe("edit-command", () => {
   });
 
   // TC-7.5a: Success returns exit code 0
+  // Note: This tests the executor's success flag, not CLI exit codes.
+  // The CLI wrapper (edit-command.ts) sets process.exitCode based on result.success.
   it("success returns exit code 0", async () => {
     const result = await executeEdit({
       sessionId: testSessionId,
@@ -538,6 +564,8 @@ describe("edit-command", () => {
   });
 
   // TC-7.5b: Failure returns non-zero
+  // Note: This tests the executor throws on failure, not CLI exit codes.
+  // The CLI wrapper (edit-command.ts) catches errors and sets process.exitCode = 1.
   it("failure returns non-zero exit code", async () => {
     await expect(
       executeEdit({

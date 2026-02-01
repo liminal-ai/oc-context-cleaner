@@ -10,7 +10,7 @@ Implements the supporting commands: list, info, and restore. These enable sessio
 
 - Stories 0-4 complete
 - Edit and clone flows working
-- `npm test` passes (38 tests)
+- `npm test` passes (42 tests)
 
 ## ACs Covered
 
@@ -44,12 +44,12 @@ Implements the supporting commands: list, info, and restore. These enable sessio
 
 ## Test Breakdown
 
-- `list-command.test.ts`: 10 tests (TC-1.1a through TC-1.9a)
-- `info-command.test.ts`: 7 tests (TC-2.1a through TC-2.7a)
-- `restore-command.test.ts`: 2 tests (TC-6.3a, TC-6.4a)
+- `list-command.test.ts`: 11 tests (TC-1.1a, TC-1.1b, TC-1.2a through TC-1.9a)
+- `info-command.test.ts`: 8 tests (TC-2.1a, TC-2.1b, TC-2.2a through TC-2.7a)
+- `restore-command.test.ts`: 3 tests (TC-6.3a, TC-6.3b, TC-6.4a)
 
-- **Story total:** 19 tests
-- **Running total:** 57 tests
+- **Story total:** 22 tests
+- **Running total:** 64 tests (42 prior + 22 new)
 
 ## Prompts
 
@@ -61,7 +61,7 @@ Implements the supporting commands: list, info, and restore. These enable sessio
 
 ## Exit Criteria
 
-- All 19 new tests pass
-- All previous tests still pass (57 total)
+- All 22 new tests pass
+- All previous tests still pass (64 total)
 - List, info, restore commands work
 - `npm run typecheck` passes

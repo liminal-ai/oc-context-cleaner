@@ -244,12 +244,13 @@ describe("list-command", () => {
     expect(sessions[2].sessionId).toBe("oldest");
   });
 
-  // TC-1.3a: Entry shows required fields
+  // TC-1.3a: Entry shows required fields (truncated ID, relative time, project path)
   it("entry shows required fields", async () => {
     const index = {
       "test-session-abc123": {
         sessionId: "test-session-abc123",
         updatedAt: Date.now() - 3600000, // 1 hour ago
+        projectPath: "/home/user/my-project",
       },
     };
     vol.writeFileSync(`${sessionsDir}/sessions.json`, JSON.stringify(index));
@@ -261,6 +262,8 @@ describe("list-command", () => {
     expect(output).toContain("test-session");
     // Should contain relative time
     expect(output).toMatch(/hour|minutes/i);
+    // Should contain project path (AC-1.3)
+    expect(output).toContain("/home/user/my-project");
   });
 
   // TC-1.4a: Limit flag restricts output
@@ -291,25 +294,73 @@ describe("list-command", () => {
     expect(parsed[0].sessionId).toBe("session-1");
   });
 
-  // TC-1.6a: Partial ID matching works (covered in edit/clone tests)
+  // TC-1.6a: Partial ID matching works
+  // Covered by: "partial ID matching works for edit" in edit-command.test.ts
+  // Covered by: "partial ID matching works for clone" in clone-command.test.ts
 
-  // TC-1.6b: Ambiguous partial ID fails (covered in edit/clone tests)
+  // TC-1.6b: Ambiguous partial ID fails gracefully
+  // Covered by: resolveSessionId throws AmbiguousIdError (tested in edit/clone commands)
 
-  // TC-1.7a: Agent auto-detected (covered in other tests)
+  // TC-1.7a: Agent auto-detected from environment
+  // Covered by: "auto-detects current session" in edit-command.test.ts (uses resolveAgentId)
 
-  // TC-1.8a: Agent flag override (covered in other tests)
+  // TC-1.8a: Agent flag overrides auto-detection
+  // Covered by: All command tests explicitly pass agentId to verify override works
 
   // TC-1.9a: Missing agent shows actionable error
   it("missing agent shows actionable error", async () => {
-    // Create agents directory with some agents
+    // Create agents directory with some agents (but not "nonexistent")
     vol.mkdirSync("/mock/.clawdbot/agents/other-agent/sessions", { recursive: true });
 
-    const agents = await listAvailableAgents();
-    expect(agents).toContain("main");
-    expect(agents).toContain("other-agent");
+    // Import and run the list command with non-existent agent
+    const { listCommand } = await import("../../src/commands/list-command.js");
+
+    // Capture stderr
+    const errorOutput: string[] = [];
+    const originalError = console.error;
+    console.error = (msg: string) => errorOutput.push(msg);
+
+    try {
+      await listCommand.run({ args: { agent: "nonexistent", json: false } });
+    } catch {
+      // Expected to throw
+    } finally {
+      console.error = originalError;
+    }
+
+    // Error should contain actionable hint
+    const output = errorOutput.join(" ");
+    expect(output).toMatch(/not found|does not exist/i);
+    expect(output).toMatch(/available agents|main|other-agent/i);
   });
 
-  // Additional helper tests
+  // TC-1.1b: List command entry point works
+  it("list command entry point returns sessions", async () => {
+    const index = {
+      "session-1": { sessionId: "session-1", updatedAt: Date.now() - 1000 },
+      "session-2": { sessionId: "session-2", updatedAt: Date.now() - 2000 },
+    };
+    vol.writeFileSync(`${sessionsDir}/sessions.json`, JSON.stringify(index));
+
+    const { listCommand } = await import("../../src/commands/list-command.js");
+
+    // Capture stdout
+    const output: string[] = [];
+    const originalLog = console.log;
+    console.log = (msg: string) => output.push(msg);
+
+    try {
+      await listCommand.run({ args: { agent: testAgentId, json: false } });
+    } finally {
+      console.log = originalLog;
+    }
+
+    const result = output.join("\n");
+    expect(result).toContain("session-1");
+    expect(result).toContain("session-2");
+  });
+
+  // Helper: formatRelativeTime formats correctly
   it("formatRelativeTime formats correctly", () => {
     const now = Date.now();
     expect(formatRelativeTime(now - 30000)).toMatch(/seconds|just now/i);
@@ -317,6 +368,7 @@ describe("list-command", () => {
     expect(formatRelativeTime(now - 86400000)).toMatch(/day/i);
   });
 
+  // Helper: truncateSessionId truncates long IDs
   it("truncateSessionId truncates long IDs", () => {
     const longId = "abc123-def456-ghi789-jkl012-mno345";
     const truncated = truncateSessionId(longId, 12);
@@ -364,7 +416,8 @@ describe("info-command", () => {
   // TC-2.1a: Info displays session statistics
   it("displays session statistics", async () => {
     const entries = createSessionWithTurns(5, 1);
-    if (entries[0].type === "session") entries[0].id = testSessionId;
+    const header = entries.find((e) => e.type === "session");
+    if (header && header.type === "session") header.id = testSessionId;
     vol.writeFileSync(sessionPath, serializeToJsonl(entries));
 
     const parsed = await readSessionFile(sessionPath);
@@ -374,7 +427,8 @@ describe("info-command", () => {
   // TC-2.2a: Message counts accurate
   it("message counts are accurate", async () => {
     const entries = createSessionWithTurns(3, 1);
-    if (entries[0].type === "session") entries[0].id = testSessionId;
+    const header = entries.find((e) => e.type === "session");
+    if (header && header.type === "session") header.id = testSessionId;
     vol.writeFileSync(sessionPath, serializeToJsonl(entries));
 
     const parsed = await readSessionFile(sessionPath);
@@ -389,7 +443,8 @@ describe("info-command", () => {
   // TC-2.3a: Token estimation displayed
   it("token estimation displayed", async () => {
     const entries = createSessionWithTurns(3, 1);
-    if (entries[0].type === "session") entries[0].id = testSessionId;
+    const header = entries.find((e) => e.type === "session");
+    if (header && header.type === "session") header.id = testSessionId;
     const content = serializeToJsonl(entries);
     vol.writeFileSync(sessionPath, content);
 
@@ -401,7 +456,8 @@ describe("info-command", () => {
   // TC-2.4a: File size displayed
   it("file size displayed", async () => {
     const entries = createSessionWithTurns(3, 1);
-    if (entries[0].type === "session") entries[0].id = testSessionId;
+    const header = entries.find((e) => e.type === "session");
+    if (header && header.type === "session") header.id = testSessionId;
     vol.writeFileSync(sessionPath, serializeToJsonl(entries));
 
     const stats = await getSessionFileStats(sessionPath);
@@ -429,9 +485,28 @@ describe("info-command", () => {
     expect(parsed.estimatedTokens).toBe(1500);
   });
 
-  // TC-2.6a: Error on invalid session ID
+  // TC-2.6a: Error on invalid session ID with actionable message
   it("error on invalid session ID", async () => {
-    await expect(readSessionFile(`${sessionsDir}/nonexistent.jsonl`)).rejects.toThrow();
+    // Import and run the info command with non-existent session
+    const { infoCommand } = await import("../../src/commands/info-command.js");
+
+    // Capture stderr
+    const errorOutput: string[] = [];
+    const originalError = console.error;
+    console.error = (msg: string) => errorOutput.push(msg);
+
+    try {
+      await infoCommand.run({ args: { sessionId: "nonexistent", agent: testAgentId, json: false } });
+    } catch {
+      // Expected to throw
+    } finally {
+      console.error = originalError;
+    }
+
+    // Error should contain actionable hint (AC-2.6)
+    const output = errorOutput.join(" ");
+    expect(output).toMatch(/not found|does not exist/i);
+    expect(output).toMatch(/occ list|available sessions/i);
   });
 
   // TC-2.7a: Empty session handled
@@ -442,6 +517,37 @@ describe("info-command", () => {
 
     const parsed = await readSessionFile(sessionPath);
     expect(parsed.messages.length).toBe(0);
+  });
+
+  // TC-2.1b: Info command entry point works
+  it("info command entry point displays statistics", async () => {
+    // Set up session index so resolveSessionId works
+    const index = { [testSessionId]: { sessionId: testSessionId, updatedAt: Date.now() } };
+    vol.writeFileSync(`${sessionsDir}/sessions.json`, JSON.stringify(index));
+
+    // Create session file
+    const entries = createSessionWithTurns(3, 1);
+    const header = entries.find((e) => e.type === "session");
+    if (header && header.type === "session") header.id = testSessionId;
+    vol.writeFileSync(sessionPath, serializeToJsonl(entries));
+
+    const { infoCommand } = await import("../../src/commands/info-command.js");
+
+    // Capture stdout
+    const output: string[] = [];
+    const originalLog = console.log;
+    console.log = (msg: string) => output.push(msg);
+
+    try {
+      await infoCommand.run({ args: { sessionId: testSessionId, agent: testAgentId, json: false } });
+    } finally {
+      console.log = originalLog;
+    }
+
+    const result = output.join("\n");
+    expect(result).toContain("Session:");
+    expect(result).toContain(testSessionId);
+    expect(result).toMatch(/messages|Messages/i);
   });
 });
 ```
@@ -483,7 +589,8 @@ describe("restore-command", () => {
   it("restore recovers from backup", async () => {
     // Create original content
     const originalEntries = createSessionWithTurns(5, 1);
-    if (originalEntries[0].type === "session") originalEntries[0].id = testSessionId;
+    const origHeader = originalEntries.find((e) => e.type === "session");
+    if (origHeader && origHeader.type === "session") origHeader.id = testSessionId;
     const originalContent = serializeToJsonl(originalEntries);
     vol.writeFileSync(sessionPath, originalContent);
 
@@ -493,7 +600,8 @@ describe("restore-command", () => {
 
     // Modify current session
     const modifiedEntries = createSessionWithTurns(2, 0);
-    if (modifiedEntries[0].type === "session") modifiedEntries[0].id = testSessionId;
+    const modHeader = modifiedEntries.find((e) => e.type === "session");
+    if (modHeader && modHeader.type === "session") modHeader.id = testSessionId;
     vol.writeFileSync(sessionPath, serializeToJsonl(modifiedEntries));
 
     // Restore from backup
@@ -508,11 +616,56 @@ describe("restore-command", () => {
   it("restore fails gracefully without backup", async () => {
     // Create session without backup
     const entries = createSessionWithTurns(3, 1);
-    if (entries[0].type === "session") entries[0].id = testSessionId;
+    const header = entries.find((e) => e.type === "session");
+    if (header && header.type === "session") header.id = testSessionId;
     vol.writeFileSync(sessionPath, serializeToJsonl(entries));
 
     // Attempt restore
     await expect(restoreFromBackup(testSessionId, testAgentId)).rejects.toThrow(/no backup/i);
+  });
+
+  // TC-6.3b: Restore command entry point works
+  it("restore command entry point recovers session", async () => {
+    // Set up session index
+    const index = { [testSessionId]: { sessionId: testSessionId, updatedAt: Date.now() } };
+    vol.writeFileSync(`${sessionsDir}/sessions.json`, JSON.stringify(index));
+
+    // Create original content and backup
+    const originalEntries = createSessionWithTurns(5, 1);
+    const origHeader = originalEntries.find((e) => e.type === "session");
+    if (origHeader && origHeader.type === "session") origHeader.id = testSessionId;
+    const originalContent = serializeToJsonl(originalEntries);
+
+    // Create backup
+    const backupPath = `${sessionsDir}/${testSessionId}.backup.1.jsonl`;
+    vol.writeFileSync(backupPath, originalContent);
+
+    // Modify current session
+    const modifiedEntries = createSessionWithTurns(2, 0);
+    const modHeader = modifiedEntries.find((e) => e.type === "session");
+    if (modHeader && modHeader.type === "session") modHeader.id = testSessionId;
+    vol.writeFileSync(sessionPath, serializeToJsonl(modifiedEntries));
+
+    const { restoreCommand } = await import("../../src/commands/restore-command.js");
+
+    // Capture stdout
+    const output: string[] = [];
+    const originalLog = console.log;
+    console.log = (msg: string) => output.push(msg);
+
+    try {
+      await restoreCommand.run({ args: { sessionId: testSessionId, agent: testAgentId } });
+    } finally {
+      console.log = originalLog;
+    }
+
+    // Verify command output
+    const result = output.join("\n");
+    expect(result).toMatch(/restored|Restored/i);
+
+    // Verify content was restored
+    const restoredContent = vol.readFileSync(sessionPath, "utf-8");
+    expect(restoredContent).toBe(originalContent);
   });
 });
 ```
@@ -532,8 +685,8 @@ npm test
 
 **Expected:**
 - Typecheck passes
-- 38 previous tests pass
-- 19 new tests fail with NotImplementedError
+- 42 previous tests pass
+- 22 new tests fail with NotImplementedError
 
 ## Done When
 
@@ -542,8 +695,8 @@ npm test
 - [ ] `src/commands/list-command.ts` created with stubs
 - [ ] `src/commands/info-command.ts` created with stubs
 - [ ] `src/commands/restore-command.ts` created with stubs
-- [ ] `tests/commands/list-command.test.ts` created with 10 tests
-- [ ] `tests/commands/info-command.test.ts` created with 7 tests
-- [ ] `tests/commands/restore-command.test.ts` created with 2 tests
+- [ ] `tests/commands/list-command.test.ts` created with 11 tests
+- [ ] `tests/commands/info-command.test.ts` created with 8 tests
+- [ ] `tests/commands/restore-command.test.ts` created with 3 tests
 - [ ] `npm run typecheck` passes
-- [ ] `npm test` runs (38 pass, 19 fail)
+- [ ] `npm test` runs (42 pass, 22 fail)

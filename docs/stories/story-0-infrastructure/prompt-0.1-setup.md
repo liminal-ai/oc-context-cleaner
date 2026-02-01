@@ -39,27 +39,30 @@ Create `package.json`:
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "format": "biome format --write src tests",
+    "format:check": "biome format src tests",
+    "lint": "biome lint src tests",
+    "check": "biome check src tests",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "eslint src tests",
-    "format": "prettier --write src tests"
+    "test:watch": "vitest"
   },
   "keywords": ["openclaw", "context", "cli", "session"],
   "license": "MIT",
-  "devDependencies": {
-    "@types/node": "^20.11.0",
-    "typescript": "^5.3.0",
-    "vitest": "^2.0.0",
-    "prettier": "^3.2.0",
-    "eslint": "^9.0.0"
-  },
   "dependencies": {
-    "citty": "^0.1.6",
-    "c12": "^2.0.0",
-    "zod": "^3.22.0"
+    "c12": "^3.3.3",
+    "citty": "^0.2.0",
+    "consola": "^3.4.2",
+    "pathe": "^2.0.3",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.13",
+    "@types/node": "^22.12.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   }
 }
 ```
@@ -82,7 +85,8 @@ Create `tsconfig.json`:
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "types": ["vitest/globals"]
   },
   "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist"]
@@ -107,6 +111,23 @@ export default defineConfig({
     },
   },
 });
+```
+
+Create `biome.json`:
+
+```json
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.13/schema.json",
+  "organizeImports": { "enabled": true },
+  "linter": {
+    "enabled": true,
+    "rules": { "recommended": true }
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "tab"
+  }
+}
 ```
 
 ### 2. Create Error Classes
@@ -381,8 +402,6 @@ import type { ToolRemovalOptions } from "./tool-removal-types.js";
 export interface EditOptions {
   /** Session ID or path (if undefined, auto-detect current) */
   sessionId?: string;
-  /** Agent ID (default: from config or "main") */
-  agentId?: string;
   /** Tool removal configuration */
   toolRemoval?: ToolRemovalOptions;
   /** Output format */
@@ -423,8 +442,6 @@ export interface EditResult {
 export interface CloneOptions {
   /** Source session ID */
   sourceSessionId: string;
-  /** Agent ID (default: from config or "main") */
-  agentId?: string;
   /** Output path (if undefined, auto-generate in sessions dir) */
   outputPath?: string;
   /** Tool removal configuration (if undefined, no stripping) */
@@ -519,7 +536,8 @@ export interface RestoreOptions {
 Create `src/types/tool-removal-types.ts`:
 
 ```typescript
-import type { ContentBlock, MessageEntry, SessionEntry } from "./session-types.js";
+import type { ContentBlock, SessionEntry } from "./session-types.js";
+import { NotImplementedError } from "../errors.js";
 
 /**
  * A turn represents one user input through the final assistant response.
@@ -592,48 +610,22 @@ export const TRUNCATION_LIMITS = {
 /**
  * Truncate a string to the specified limits.
  */
-export function truncateString(
-  text: string,
-  maxChars: number = TRUNCATION_LIMITS.maxChars,
-  maxLines: number = TRUNCATION_LIMITS.maxLines,
-  marker: string = TRUNCATION_LIMITS.argumentMarker
-): string {
-  const lines = text.split("\n").slice(0, maxLines);
-  let result = lines.join("\n");
-
-  if (result.length > maxChars) {
-    result = result.slice(0, maxChars - marker.length) + marker;
-  } else if (text.split("\n").length > maxLines || text.length > result.length) {
-    result = result + marker;
-  }
-
-  return result;
+export function truncateString(str: string, maxChars: number, maxLines: number): string {
+  throw new NotImplementedError("truncateString");
 }
 
 /**
  * Truncate tool call arguments for display.
  */
 export function truncateArguments(args: Record<string, unknown>): string {
-  const json = JSON.stringify(args);
-  return truncateString(json, TRUNCATION_LIMITS.maxChars, TRUNCATION_LIMITS.maxLines, TRUNCATION_LIMITS.argumentMarker);
+  throw new NotImplementedError("truncateArguments");
 }
 
 /**
  * Truncate tool result content for display.
  */
 export function truncateToolResult(content: string | ContentBlock[]): string {
-  let text: string;
-
-  if (typeof content === "string") {
-    text = content;
-  } else {
-    text = content
-      .filter((block): block is { type: "text"; text: string } => block.type === "text")
-      .map((block) => block.text)
-      .join("\n");
-  }
-
-  return truncateString(text, TRUNCATION_LIMITS.maxChars, TRUNCATION_LIMITS.maxLines, TRUNCATION_LIMITS.contentMarker);
+  throw new NotImplementedError("truncateToolResult");
 }
 ```
 
@@ -745,6 +737,7 @@ import type {
   MessageEntry,
   ToolCallBlock,
   TextBlock,
+  SessionIndexEntry,
 } from "../../src/types/index.js";
 
 export const FIXTURE_SESSION_HEADER: SessionHeader = {
@@ -901,8 +894,8 @@ export function createSessionWithTurns(
  */
 export function createSessionIndex(
   sessionIds: string[]
-): Record<string, { sessionId: string; updatedAt: number }> {
-  const index: Record<string, { sessionId: string; updatedAt: number }> = {};
+): Record<string, SessionIndexEntry> {
+  const index: Record<string, SessionIndexEntry> = {};
   let timestamp = Date.now();
 
   for (const id of sessionIds) {

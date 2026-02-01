@@ -16,7 +16,7 @@
 npm test -- --reporter=verbose
 ```
 
-**Expected:** 38 tests pass (8 algorithm + 19 edit + 11 clone)
+**Expected:** 42 tests pass (12 algorithm + 19 edit + 11 clone)
 
 Verify each clone test:
 
@@ -88,6 +88,8 @@ Verify human output includes:
   Resume: openclaw resume <newId>
 ```
 
+Note: The `formatCloneResultHuman` function uses `✓` (checkmark) prefix and `→` (Unicode arrow), matching the edit formatter style.
+
 ## Verification Commands
 
 ```bash
@@ -99,12 +101,16 @@ npm test -- --grep "clone-command"
 
 # Typecheck
 npm run typecheck
+
+# Lint
+npm run lint
 ```
 
 ## Pass Criteria
 
-- [ ] All 38 tests pass
+- [ ] All 42 tests pass (12 algorithm + 19 edit + 11 clone)
 - [ ] No TypeScript errors
+- [ ] No lint errors
 - [ ] Clone metadata correct
 - [ ] UUID format valid
 - [ ] Index registration correct

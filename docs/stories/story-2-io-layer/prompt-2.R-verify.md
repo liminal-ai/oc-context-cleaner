@@ -71,11 +71,11 @@ Verify path format:
 # Typecheck
 npm run typecheck
 
+# Lint check
+npm run lint
+
 # Run existing tests
 npm test
-
-# Verify imports work
-node -e "import('./dist/io/paths.js').then(m => console.log(m.getStateDirectory()))"
 ```
 
 ## Manual Verification
@@ -93,6 +93,7 @@ cat ~/.clawdbot/agents/main/sessions/sessions.json | head -20
 ## Pass Criteria
 
 - [ ] `npm run typecheck` passes
+- [ ] `npm run lint` passes
 - [ ] All 8 tests still pass
 - [ ] Atomic write pattern implemented
 - [ ] Error handling follows spec

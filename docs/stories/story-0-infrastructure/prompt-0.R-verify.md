@@ -31,6 +31,7 @@ tests/
 package.json
 tsconfig.json
 vitest.config.ts
+biome.json
 ```
 
 ### 2. TypeScript Compilation
@@ -99,6 +100,33 @@ Verify `tests/fixtures/sessions.ts` exports:
 
 Verify `src/types/index.ts` re-exports all types from the other type files.
 
+### 9. Stub Functions Throw NotImplementedError
+
+Story 0 requires all runtime functions to be stubs that throw `NotImplementedError`. Verify that:
+
+- `truncateString()` throws `NotImplementedError`
+- `truncateArguments()` throws `NotImplementedError`
+- `truncateToolResult()` throws `NotImplementedError`
+
+No function should contain actual implementation logic. Each should have a body consisting only of:
+```typescript
+throw new NotImplementedError("functionName");
+```
+
+### 10. No Runtime Behavior
+
+Verify that Story 0 infrastructure contains:
+- Types and interfaces (no implementation)
+- Error classes (constructors only)
+- Test fixtures (data generators only)
+- Stub functions that throw `NotImplementedError`
+
+There should be NO:
+- Actual algorithm implementations
+- File I/O operations
+- Session parsing logic
+- Tool removal logic
+
 ## Verification Commands
 
 ```bash
@@ -114,10 +142,12 @@ npx tsc --noEmit src/types/index.ts
 
 ## Pass Criteria
 
-- [ ] All files exist at specified paths
+- [ ] All files exist at specified paths (including `biome.json`)
 - [ ] `npm run typecheck` exits with code 0
 - [ ] No TypeScript errors
 - [ ] All type exports accessible via `src/types/index.ts`
+- [ ] All stub functions throw `NotImplementedError` (no real implementations)
+- [ ] No runtime behavior exists in Story 0 code
 
 ## Fail Actions
 

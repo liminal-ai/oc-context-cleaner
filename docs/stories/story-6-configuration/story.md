@@ -10,7 +10,7 @@ Implements configuration loading, custom presets, and the main CLI entry point w
 
 - Stories 0-5 complete
 - All commands implemented
-- `npm test` passes (57 tests)
+- `npm test` passes (64 tests)
 
 ## ACs Covered
 
@@ -35,11 +35,11 @@ Implements configuration loading, custom presets, and the main CLI entry point w
 
 ## Test Breakdown
 
-- `main-command.test.ts`: 2 tests (TC-7.7a, TC-7.8a)
+- `main-command.test.ts`: 3 tests (TC-7.7a, TC-7.8a, TC-7.8b)
 - `configuration-loader.test.ts`: 4 tests (TC-8.1a through TC-8.4a)
 
-- **Story total:** 6 tests
-- **Running total:** 63 tests
+- **Story total:** 7 tests
+- **Running total:** 71 tests (64 prior + 7 new)
 
 ## Prompts
 
@@ -51,9 +51,16 @@ Implements configuration loading, custom presets, and the main CLI entry point w
 
 ## Exit Criteria
 
-- All 6 new tests pass
-- All previous tests still pass (63 total)
+- All 7 new tests pass
+- All previous tests still pass (71 total)
 - CLI entry point works
 - Config loading works
 - Help and quickstart display correctly
 - `npm run typecheck` passes
+
+## Files Modified
+
+- `src/cli.ts` — Updated to load config and pass to commands
+- `src/io/paths.ts` — No changes (constants already exist)
+
+**Note:** `DEFAULT_STATE_DIR` and `DEFAULT_AGENT_ID` already exist in `src/io/paths.ts`. The new `default-configuration.ts` imports from there.

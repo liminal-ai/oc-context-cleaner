@@ -10,13 +10,14 @@ Implements filesystem operations: reading/writing session files, session discove
 
 - Story 0 complete (types, fixtures)
 - Story 1 complete (core algorithm)
-- `npm test` passes (8 tests)
+- `npm test` passes (12 tests)
 
 ## ACs Covered
 
 - **AC-1.6:** Partial session ID matching supported
 - **AC-1.7:** Auto-detect active agent from environment
 - **AC-1.8:** `--agent` flag overrides auto-detection
+- **AC-1.9:** Missing agent context shows actionable error
 - **AC-3.6:** Partial session ID matching for edit
 - **AC-3.8:** Auto-detect current session for edit
 - **AC-4.8:** Partial session ID matching for clone
@@ -36,8 +37,17 @@ Implements filesystem operations: reading/writing session files, session discove
 - IO layer is tested through command tests in Stories 3-5
 - No separate IO tests (avoid testing internal modules)
 
+**TCs implemented (tested in later stories):**
+- TC-1.6a, TC-1.6b: Partial ID matching (Story 3, 4)
+- TC-1.7a: Agent auto-detection (Story 3)
+- TC-1.8a: Agent flag override (Story 3)
+- TC-1.9a: Missing agent error (Story 3)
+- TC-3.6a: Partial ID for edit (Story 3)
+- TC-3.8a, TC-3.8b: Auto-detect for edit (Story 3)
+- TC-4.8a: Partial ID for clone (Story 4)
+
 - **Story total:** 0 tests (coverage via command tests)
-- **Running total:** 8 tests
+- **Running total:** 12 tests
 
 ## Prompts
 

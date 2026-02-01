@@ -123,9 +123,12 @@ export function removeToolCallsFromMessage(message: MessageEntry): MessageEntry 
 
 /**
  * Truncate tool calls in a message entry.
- * Returns the message with tool call arguments truncated.
+ * Returns the message with tool call arguments truncated and count of truncations.
  */
-export function truncateToolCallsInMessage(message: MessageEntry): MessageEntry {
+export function truncateToolCallsInMessage(message: MessageEntry): {
+  message: MessageEntry;
+  truncatedCount: number;
+} {
   throw new NotImplementedError("truncateToolCallsInMessage");
 }
 ```
@@ -307,8 +310,58 @@ describe("tool-call-remover", () => {
     }
   });
 
+  // TC-5.5a: Preserved turns have unmodified tool calls
+  it("preserved turns have completely unmodified tool calls", () => {
+    const entries = createSessionWithTurns(10, 1);
+
+    // Store original tool call content for preserved turns (newest 5)
+    const originalToolCalls = new Map<string, Record<string, unknown>>();
+    const messages = entries.filter((e): e is MessageEntry => e.type === "message");
+
+    // With 10 turns, keepTurnsWithTools=10, truncatePercent=50:
+    // - 5 truncated (oldest)
+    // - 5 preserved (newest)
+    // The preserved turns are the last 5 turns (indices 5-9)
+    for (const entry of entries) {
+      if (entry.type === "message") {
+        const content = entry.message.content;
+        if (typeof content !== "string") {
+          for (const block of content) {
+            if (block.type === "toolCall") {
+              // Store original for later comparison
+              originalToolCalls.set(block.id, JSON.parse(JSON.stringify(block.arguments)));
+            }
+          }
+        }
+      }
+    }
+
+    const options: ResolvedToolRemovalOptions = {
+      keepTurnsWithTools: 10,
+      truncatePercent: 50, // Truncate oldest 5, preserve newest 5
+    };
+
+    const result = removeToolCalls(entries, options);
+
+    // Collect preserved tool calls (from newest 5 turns: call_5_0 through call_9_0)
+    const preservedCallIds = ["call_5_0", "call_6_0", "call_7_0", "call_8_0", "call_9_0"];
+
+    for (const entry of result.processedEntries) {
+      if (entry.type !== "message") continue;
+      const content = entry.message.content;
+      if (typeof content === "string") continue;
+
+      for (const block of content) {
+        if (block.type === "toolCall" && preservedCallIds.includes(block.id)) {
+          // Preserved tool calls must be identical to original
+          expect(block.arguments).toEqual(originalToolCalls.get(block.id));
+        }
+      }
+    }
+  });
+
   // TC-5.6a: Truncation respects limits
-  it("truncation respects 120 char / 2 line limits", () => {
+  it("truncation respects 120 char / 2 line limits with markers", () => {
     // Create a session with a very long tool call argument
     const entries = createSessionWithTurns(5, 1);
 
@@ -344,9 +397,37 @@ describe("tool-call-remover", () => {
 
       for (const block of content) {
         if (block.type === "toolCall") {
-          const argsStr = JSON.stringify(block.arguments);
-          // Should be truncated to 120 chars or less (plus marker)
-          expect(argsStr.length).toBeLessThanOrEqual(125); // 120 + "..." margin
+          // Arguments should be stored as truncated string directly
+          const argsValue = block.arguments;
+          expect(typeof argsValue).toBe("string");
+          const argsStr = argsValue as unknown as string;
+
+          // Should be max 120 chars (plus "..." marker)
+          expect(argsStr.length).toBeLessThanOrEqual(123); // 120 + "..."
+
+          // Should be max 2 lines
+          const lineCount = argsStr.split("\n").length;
+          expect(lineCount).toBeLessThanOrEqual(2);
+
+          // Should have "..." marker appended for truncated arguments
+          expect(argsStr.endsWith("...")).toBe(true);
+        }
+      }
+    }
+
+    // Verify tool result truncation uses "[truncated]" marker
+    for (const entry of result.processedEntries) {
+      if (entry.type !== "message") continue;
+      if (entry.message.role !== "toolResult") continue;
+
+      const content = entry.message.content;
+      // Tool results with long content should be truncated with "[truncated]"
+      if (typeof content === "string" && content.length > 0) {
+        // If content was truncated, it should end with [truncated]
+        // Note: short content won't be truncated
+        const lineCount = content.split("\n").length;
+        if (lineCount > 2 || content.length > 120) {
+          expect(content.endsWith("[truncated]")).toBe(true);
         }
       }
     }
@@ -489,6 +570,6 @@ npm test
 - [ ] `src/core/turn-boundary-calculator.ts` created with stubs
 - [ ] `src/core/tool-call-remover.ts` created with stubs
 - [ ] `src/core/session-parser.ts` created with stubs
-- [ ] `tests/algorithms/tool-call-remover.test.ts` created with 8+ tests
+- [ ] `tests/algorithms/tool-call-remover.test.ts` created with 11 tests
 - [ ] `npm run typecheck` passes
 - [ ] `npm test` runs (tests fail with NotImplementedError)

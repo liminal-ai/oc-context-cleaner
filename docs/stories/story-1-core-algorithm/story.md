@@ -32,18 +32,22 @@ Implements the heart of the cleaner: turn boundary detection and tool call remov
 
 ## Test Breakdown
 
-- `tool-call-remover.test.ts`: 8 tests
+- `tool-call-remover.test.ts`: 12 tests
   - TC-5.1a: Default keeps 20 turns with tools
   - TC-5.1b: Default truncates oldest 50% of kept
   - TC-5.2a: Aggressive keeps 10 turns
   - TC-5.3a: Extreme removes all tool calls
   - TC-5.4a: No dangling tool references
-  - TC-5.6a: Truncation respects limits
+  - TC-5.5a: Preserved turns have unmodified tool calls
+  - TC-5.6a: Truncation respects 120 char / 2 line limits with markers
   - TC-5.7a: Removed tool calls deleted entirely
   - TC-5.8a: No-tool session unchanged
+  - Turn boundary identification (implementation test)
+  - Turn classification (implementation test)
+  - Edge case: empty session handling (implementation test)
 
-- **Story total:** 8 tests
-- **Running total:** 8 tests
+- **Story total:** 12 tests
+- **Running total:** 12 tests
 
 ## Prompts
 
@@ -55,7 +59,7 @@ Implements the heart of the cleaner: turn boundary detection and tool call remov
 
 ## Exit Criteria
 
-- All 8 tests pass
+- All 12 tests pass
 - `npm run typecheck` passes
 - Tool removal algorithm handles all preset configurations
 - No dangling tool references in output

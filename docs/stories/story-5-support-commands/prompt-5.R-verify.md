@@ -16,13 +16,13 @@
 npm test -- --reporter=verbose
 ```
 
-**Expected:** 57 tests pass
+**Expected:** 64 tests pass
 
 | TC | Test | Expected |
 |----|------|----------|
 | TC-1.1a | displays all | All sessions shown |
 | TC-1.2a | sorted by recency | Newest first |
-| TC-1.3a | required fields | ID, time visible |
+| TC-1.3a | required fields | ID, time, project path visible |
 | TC-1.4a | limit flag | Respects -n |
 | TC-1.5a | JSON parseable | Valid JSON array |
 | TC-1.9a | missing agent error | Lists available agents |
@@ -92,7 +92,7 @@ npm run typecheck
 
 ## Pass Criteria
 
-- [ ] All 57 tests pass
+- [ ] All 64 tests pass
 - [ ] No TypeScript errors
 - [ ] List formatting correct
 - [ ] Info statistics accurate

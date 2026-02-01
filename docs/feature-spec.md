@@ -47,7 +47,7 @@ Core capabilities:
 - History smoothing—grammar, spelling, whitespace normalization (future feature)
 - Automatic/scheduled triggering (manual CLI invocation only for this feature)
 - Patching into OpenClaw core (future: configurable params in OpenClaw itself)
-- Thinking block removal (OpenClaw doesn't have thinking blocks like Claude Code)
+- ~~Thinking block removal (OpenClaw doesn't have thinking blocks like Claude Code)~~ **DEFECT:** Research gap — OpenClaw sessions DO contain thinking blocks. Anthropic API rejects them on replay. Resolved during implementation: thinking blocks are now stripped alongside tool calls.
 - Memory database synchronization (future: sync memory.db after transcript modification)
 
 ### Assumptions

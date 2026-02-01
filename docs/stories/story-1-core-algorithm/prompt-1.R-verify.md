@@ -25,7 +25,8 @@ npm test -- --reporter=verbose
 | TC-5.2a | aggressive keeps 10 | 20 turns → 10 removed, 10 kept |
 | TC-5.3a | extreme removes all | All tool calls removed |
 | TC-5.4a | no dangling refs | All toolResult.toolCallId has matching toolCall.id |
-| TC-5.6a | truncation limits | Arguments ≤120 chars or ≤2 lines |
+| TC-5.5a | preserved unmodified | Newest preserved turns have identical tool call arguments |
+| TC-5.6a | truncation limits | Arguments ≤120 chars or ≤2 lines with markers |
 | TC-5.7a | deleted entirely | Removed tools leave no trace |
 | TC-5.8a | no-tool unchanged | Sessions without tools pass through |
 
@@ -36,6 +37,14 @@ npm run typecheck
 ```
 
 **Expected:** Exit code 0, no errors.
+
+### 2b. Lint Check
+
+```bash
+npm run lint
+```
+
+**Expected:** Exit code 0, no lint errors.
 
 ### 3. Algorithm Correctness
 
@@ -93,15 +102,19 @@ npm test -- --grep "tool-call-remover"
 
 # Typecheck
 npm run typecheck
+
+# Lint check
+npm run lint
 ```
 
 ## Pass Criteria
 
-- [ ] All 8+ tests pass
+- [ ] All 11 tests pass
 - [ ] No TypeScript errors
+- [ ] No lint errors
 - [ ] Classification matches expected behavior
 - [ ] No orphaned tool references possible
-- [ ] Truncation respects limits
+- [ ] Truncation respects limits (120 chars / 2 lines with markers)
 - [ ] Non-tool content unchanged
 
 ## Fail Actions

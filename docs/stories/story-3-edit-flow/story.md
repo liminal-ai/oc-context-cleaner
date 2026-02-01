@@ -11,7 +11,7 @@ Implements the complete edit command: backup creation, tool stripping, and atomi
 - Story 0 complete (types, fixtures)
 - Story 1 complete (core algorithm)
 - Story 2 complete (IO layer)
-- `npm test` passes (8 tests)
+- `npm test` passes (12 tests)
 
 ## ACs Covered
 
@@ -39,17 +39,18 @@ Implements the complete edit command: backup creation, tool stripping, and atomi
 - `src/core/edit-operation-executor.ts` — Edit orchestration
 - `src/commands/edit-command.ts` — CLI command handler
 - `src/output/result-formatter.ts` — Format operation results
+- `src/config/tool-removal-presets.ts` — Preset configurations for tool removal
 - `tests/commands/edit-command.test.ts` — Edit command tests
 
 ## Test Breakdown
 
 - `edit-command.test.ts`: 19 tests
-  - TC-3.1a through TC-3.8b (10 tests)
+  - TC-3.1a through TC-3.8b (9 tests: 3.1a, 3.2a, 3.3a, 3.4a, 3.5a, 3.6a, 3.7a, 3.8a, 3.8b)
   - TC-6.1a, TC-6.2a, TC-6.5a, TC-6.5b (4 tests)
-  - TC-7.1a, TC-7.2a, TC-7.4a, TC-7.5a, TC-7.5b, TC-7.6a (5 tests)
+  - TC-7.1a, TC-7.2a, TC-7.4a, TC-7.5a, TC-7.5b, TC-7.6a (6 tests)
 
 - **Story total:** 19 tests
-- **Running total:** 27 tests
+- **Running total:** 31 tests (12 algorithm + 19 edit)
 
 ## Prompts
 
@@ -62,7 +63,7 @@ Implements the complete edit command: backup creation, tool stripping, and atomi
 ## Exit Criteria
 
 - All 19 new tests pass
-- All 8 previous tests still pass (27 total)
+- All previous 12 tests still pass (31 total)
 - Edit command works end-to-end
 - Backup rotation works correctly
 - `npm run typecheck` passes

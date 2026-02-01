@@ -8,7 +8,7 @@ Sets up the foundational scaffolding before feature implementation begins. All t
 
 ## Prerequisites
 
-- Node.js 18+ installed
+- Node.js 20+ installed
 - Project initialized with `npm init`
 - TypeScript configured
 
@@ -29,6 +29,7 @@ None directly—this is infrastructure supporting all ACs.
 - `package.json` — Dependencies
 - `tsconfig.json` — TypeScript config
 - `vitest.config.ts` — Test config
+- `biome.json` — Biome config
 
 ## Test Breakdown
 

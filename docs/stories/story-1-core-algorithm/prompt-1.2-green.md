@@ -13,7 +13,7 @@
 **Prerequisites:**
 - Story 1 Skeleton+Red complete
 - Tests exist and fail with `NotImplementedError`
-- 8 tests to make pass
+- 11 tests to make pass
 
 ## Reference Documents
 
@@ -147,6 +147,9 @@ export function removeToolCalls(
   const keptToolCallIds = new Set<string>();
   const processedMessages: MessageEntry[] = [];
 
+  // Track count of individual tool calls truncated
+  let toolCallsTruncatedCount = 0;
+
   // Process each message
   for (let i = 0; i < messages.length; i++) {
     const message = messages[i];
@@ -179,7 +182,9 @@ export function removeToolCalls(
           keptToolCallIds.add(message.message.toolCallId);
         }
       } else {
-        const truncated = truncateToolCallsInMessage(message);
+        const { message: truncated, truncatedCount } = truncateToolCallsInMessage(message);
+        // Count individual tool calls that were truncated
+        toolCallsTruncatedCount += truncatedCount;
         // Track kept tool call IDs
         for (const id of getToolCallIds(truncated)) {
           keptToolCallIds.add(id);
@@ -214,7 +219,8 @@ export function removeToolCalls(
     turnsWithTools,
     classified,
     messages,
-    finalMessages
+    finalMessages,
+    toolCallsTruncatedCount
   );
 
   return { processedEntries, statistics };
@@ -284,41 +290,45 @@ export function removeToolCallsFromMessage(message: MessageEntry): MessageEntry 
 
 /**
  * Truncate tool calls in a message entry.
+ * Returns the count of tool calls that were truncated.
  */
-export function truncateToolCallsInMessage(message: MessageEntry): MessageEntry {
+export function truncateToolCallsInMessage(message: MessageEntry): { message: MessageEntry; truncatedCount: number } {
   const content = message.message.content;
-  if (typeof content === "string") return message;
+  if (typeof content === "string") return { message, truncatedCount: 0 };
 
+  let truncatedCount = 0;
   const processed: ContentBlock[] = content.map((block) => {
     if (block.type !== "toolCall") return block;
 
-    // Truncate the arguments
+    // Truncate the arguments per tech-design:
+    // 1. JSON.stringify the args
+    // 2. Truncate the string to 120 chars / 2 lines
+    // 3. Append "..." if truncated
+    // 4. Store the truncated string directly
     const truncatedArgs = truncateArguments(block.arguments);
-    // Parse back to object (or use truncated string as single property)
-    let newArgs: Record<string, unknown>;
-    try {
-      // If it's valid JSON, parse it
-      if (truncatedArgs.endsWith("...")) {
-        newArgs = { _truncated: truncatedArgs };
-      } else {
-        newArgs = JSON.parse(truncatedArgs);
-      }
-    } catch {
-      newArgs = { _truncated: truncatedArgs };
+    const originalArgs = JSON.stringify(block.arguments);
+
+    // Check if truncation actually occurred
+    if (truncatedArgs !== originalArgs) {
+      truncatedCount++;
     }
 
     return {
       ...block,
-      arguments: newArgs,
+      // Store truncated string directly (not wrapped in object)
+      arguments: truncatedArgs as unknown as Record<string, unknown>,
     };
   });
 
   return {
-    ...message,
     message: {
-      ...message.message,
-      content: processed,
+      ...message,
+      message: {
+        ...message.message,
+        content: processed,
+      },
     },
+    truncatedCount,
   };
 }
 
@@ -357,7 +367,8 @@ function calculateStatistics(
   turnsWithTools: TurnBoundary[],
   classified: { preserve: number[]; truncate: number[]; remove: number[] },
   originalMessages: MessageEntry[],
-  finalMessages: MessageEntry[]
+  finalMessages: MessageEntry[],
+  toolCallsTruncatedCount: number
 ): ToolRemovalStatistics {
   // Count tool calls in original
   let originalToolCalls = 0;
@@ -377,7 +388,7 @@ function calculateStatistics(
     turnsWithToolsTruncated: classified.truncate.length,
     turnsWithToolsPreserved: classified.preserve.length,
     toolCallsRemoved: originalToolCalls - finalToolCalls,
-    toolCallsTruncated: classified.truncate.length, // Approximation: 1 tool call per truncated turn
+    toolCallsTruncated: toolCallsTruncatedCount, // Count of individual tool calls truncated
   };
 }
 ```
@@ -456,7 +467,7 @@ npm test
 
 **Expected:**
 - Typecheck passes
-- All 8+ tests pass (0 failures)
+- All 11 tests pass (0 failures)
 
 ## Done When
 

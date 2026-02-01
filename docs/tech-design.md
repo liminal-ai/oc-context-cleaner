@@ -399,7 +399,7 @@ sequenceDiagram
     CLI->>Exec: executeEdit(sessionPath, options)
 
     Note over Exec,Backup: AC-3.2: Create backup before modifying
-    Exec->>Backup: createBackup(sessionPath)
+    Exec->>Backup: createBackup(sessionId, agentId)
     Backup->>FS: read original file
     Backup->>FS: write {id}.backup.{n}.jsonl
     Note over Backup,FS: AC-6.2: Monotonic numbering
@@ -438,7 +438,7 @@ sequenceDiagram
 |------|-------|----------------|
 | Edit command | `src/commands/edit-command.ts` | `export const editCommand = defineCommand({...})` |
 | Edit executor | `src/core/edit-operation-executor.ts` | `export async function executeEdit(options: EditOptions): Promise<EditResult>` |
-| Backup manager | `src/core/backup-manager.ts` | `export async function createBackup(sessionPath: string): Promise<string>` |
+| Backup manager | `src/core/backup-manager.ts` | `export async function createBackup(sessionId: string, agentId: string): Promise<string>` |
 | Tool remover | `src/core/tool-call-remover.ts` | `export function removeToolCalls(entries: SessionEntry[], options: ResolvedToolRemovalOptions): ToolRemovalResult` |
 
 **TC Mapping for Edit Flow:**
@@ -507,7 +507,7 @@ sequenceDiagram
 
     alt --no-register not specified
         Note over Exec,Index: AC-4.9: Update session index
-        Exec->>Index: addSessionToIndex(newSessionId, path)
+        Exec->>Index: addSessionToIndex(newSessionId, agentId, metadata)
         Index->>FS: read sessions.json
         Index->>FS: write updated sessions.json
     else --no-register
@@ -526,7 +526,7 @@ sequenceDiagram
 |------|-------|----------------|
 | Clone command | `src/commands/clone-command.ts` | `export const cloneCommand = defineCommand({...})` |
 | Clone executor | `src/core/clone-operation-executor.ts` | `export async function executeClone(options: CloneOptions): Promise<CloneResult>` |
-| Index writer | `src/io/session-index-writer.ts` | `export async function addSessionToIndex(sessionId: string, path: string, metadata: SessionMetadata): Promise<void>` (uses atomic write: temp file + rename, same as session files) |
+| Index writer | `src/io/session-index-writer.ts` | `export async function addSessionToIndex(sessionId: string, agentId: string, metadata?: Partial<SessionIndexEntry>): Promise<void>` (uses atomic write: temp file + rename, same as session files) |
 
 **TC Mapping for Clone Flow:**
 
@@ -678,7 +678,7 @@ sequenceDiagram
     participant FS as Filesystem
 
     User->>CLI: occ restore <sessionId>
-    CLI->>Backup: findLatestBackup(sessionId)
+    CLI->>Backup: findLatestBackup(sessionId, agentId)
     Backup->>FS: glob {sessionId}.backup.*.jsonl
 
     alt backups exist
@@ -1052,6 +1052,8 @@ export interface SessionsIndex {
 export interface EditOptions {
   /** Session ID or path (if undefined, auto-detect current) */
   sessionId?: string;
+  /** Agent ID (if undefined, auto-detect or use 'main') */
+  agentId?: string;
   /** Tool removal configuration */
   toolRemoval?: ToolRemovalOptions;
   /** Output format */
@@ -1095,6 +1097,8 @@ export interface EditStatistics {
 export interface CloneOptions {
   /** Source session ID */
   sourceSessionId: string;
+  /** Agent ID (default: from config or "main") */
+  agentId?: string;
   /** Output path (if undefined, auto-generate in sessions dir) */
   outputPath?: string;
   /** Tool removal configuration (if undefined, no stripping) */
@@ -1106,6 +1110,9 @@ export interface CloneOptions {
   /** Verbose output */
   verbose: boolean;
 }
+
+Note: CloneOptions includes agentId for explicit agent targeting. When omitted,
+the system auto-detects using the CLAWDBOT_AGENT_ID env var or defaults to "main".
 
 /**
  * Result of clone operation.
@@ -1137,6 +1144,54 @@ export interface CloneStatistics {
   sizeOriginal: number;        // bytes
   sizeCloned: number;          // Note: "Cloned" not "After" per spec
   reductionPercent: number;
+}
+
+/**
+ * Options for list operation.
+ */
+export interface ListOptions {
+  /** Agent ID (default: from config or "main") */
+  agentId?: string;
+  /** Limit number of results */
+  limit?: number;
+  /** Output format */
+  outputFormat: "human" | "json";
+}
+
+/**
+ * Options for info operation.
+ */
+export interface InfoOptions {
+  /** Session ID */
+  sessionId: string;
+  /** Agent ID (default: from config or "main") */
+  agentId?: string;
+  /** Output format */
+  outputFormat: "human" | "json";
+}
+
+/**
+ * Session info statistics.
+ */
+export interface SessionInfo {
+  sessionId: string;
+  totalMessages: number;
+  userMessages: number;
+  assistantMessages: number;
+  toolCalls: number;
+  toolResults: number;
+  estimatedTokens: number;
+  fileSizeBytes: number;
+}
+
+/**
+ * Options for restore operation.
+ */
+export interface RestoreOptions {
+  /** Session ID */
+  sessionId: string;
+  /** Agent ID (default: from config or "main") */
+  agentId?: string;
 }
 ```
 
@@ -1204,6 +1259,21 @@ export const TRUNCATION_LIMITS = {
   argumentMarker: "...",           // Appended to truncated JSON
   contentMarker: "[truncated]",    // Appended to truncated text
 } as const;
+
+/**
+ * Truncate a string to the specified limits.
+ *
+ * @param str The string to truncate
+ * @param maxChars Maximum characters allowed
+ * @param maxLines Maximum lines allowed
+ * @returns Truncated string
+ *
+ * Algorithm:
+ * 1. Split by newlines, take first maxLines
+ * 2. Join back, check total length
+ * 3. If > maxChars, truncate at maxChars
+ */
+export function truncateString(str: string, maxChars: number, maxLines: number): string;
 
 /**
  * Truncate tool call arguments for display.
@@ -1361,26 +1431,29 @@ export function identifyTurnBoundaries(entries: MessageEntry[]): TurnBoundary[];
  *
  * Rotates to keep max 5 backups (deletes oldest when limit exceeded).
  *
- * @param sessionPath Path to session file
+ * @param sessionId Session ID
+ * @param agentId Agent ID
  * @returns Path to created backup
  */
-export async function createBackup(sessionPath: string): Promise<string>;
+export async function createBackup(sessionId: string, agentId: string): Promise<string>;
 
 /**
  * Find the most recent backup for a session.
  *
  * @param sessionId Session ID
+ * @param agentId Agent ID
  * @returns Path to most recent backup, or null if none
  */
-export async function findLatestBackup(sessionId: string): Promise<string | null>;
+export async function findLatestBackup(sessionId: string, agentId: string): Promise<string | null>;
 
 /**
  * Restore a session from its most recent backup.
  *
  * @param sessionId Session ID
+ * @param agentId Agent ID
  * @throws RestoreError if no backup exists
  */
-export async function restoreFromBackup(sessionId: string): Promise<void>;
+export async function restoreFromBackup(sessionId: string, agentId: string): Promise<void>;
 
 
 // src/io/session-discovery.ts
@@ -1878,8 +1951,8 @@ The tool removal algorithm—heart of the cleaner. Pure functions, no IO.
 
 **Exit Criteria:** Tool removal algorithm works on fixture data.
 
-**Test Count:** 8 tests (TC-5.1a, TC-5.1b, TC-5.2a, TC-5.3a, TC-5.4a, TC-5.6a, TC-5.7a, TC-5.8a)
-**Running Total:** 8 tests
+**Test Count:** 12 tests (TC-5.1a, TC-5.1b, TC-5.2a, TC-5.3a, TC-5.4a, TC-5.5a, TC-5.6a, TC-5.7a, TC-5.8a, plus 3 implementation tests)
+**Running Total:** 12 tests
 
 ### Chunk 2: IO Layer
 
@@ -1899,7 +1972,7 @@ Filesystem operations—read, write, discover sessions. Tested through commands.
 **Exit Criteria:** Can read and write real session files.
 
 **Test Count:** 0 (covered by command tests)
-**Running Total:** 8 tests
+**Running Total:** 12 tests
 
 ### Chunk 3: Edit Flow
 
@@ -1917,7 +1990,7 @@ Complete edit command with backup. Primary entry point tests.
 **Exit Criteria:** `occ edit <id> --strip-tools` works end-to-end.
 
 **Test Count:** 19 tests (TC-3.x, TC-6.1a, TC-6.2a, TC-6.5a/b, TC-7.1a, TC-7.2a, TC-7.4a, TC-7.5a/b, TC-7.6a)
-**Running Total:** 27 tests
+**Running Total:** 31 tests
 
 ### Chunk 4: Clone Flow
 
@@ -1933,7 +2006,7 @@ Complete clone command with index registration.
 **Exit Criteria:** `occ clone <id> --strip-tools` works end-to-end.
 
 **Test Count:** 11 tests (TC-4.1a through TC-4.10a, TC-7.3a)
-**Running Total:** 38 tests
+**Running Total:** 42 tests
 
 ### Chunk 5: Support Commands
 
@@ -1952,7 +2025,7 @@ List, info, restore commands.
 **Exit Criteria:** All commands work.
 
 **Test Count:** 19 tests (TC-1.x, TC-2.x, TC-6.3a, TC-6.4a)
-**Running Total:** 57 tests
+**Running Total:** 61 tests
 
 ### Chunk 6: Configuration
 
@@ -1973,7 +2046,7 @@ Config loading, custom presets, help output.
 **Exit Criteria:** Full CLI works with config.
 
 **Test Count:** 6 tests (TC-8.x, TC-7.7a, TC-7.8a)
-**Running Total:** 63 tests
+**Running Total:** 67 tests
 
 ### Chunk Dependencies
 
@@ -1999,7 +2072,7 @@ Chunk 2 (IO Layer)
 
 ### Completeness
 
-- [x] Every TC from feature spec mapped to a test file (63 tests total)
+- [x] Every TC from feature spec mapped to a test file (67 tests total)
 - [x] All interfaces fully defined (types, props, signatures)
 - [x] Module boundaries clear—no ambiguity about what lives where
 - [x] Chunk breakdown includes test count estimates

@@ -12,12 +12,13 @@
 
 **Prerequisites:**
 - Story 4 Skeleton+Red complete
-- 11 clone tests failing
+- 31 previous tests pass
+- 11 clone tests ERROR with NotImplementedError
 
 ## Reference Documents
 
-- Tech Design: `docs/tech-design.md` (Flow 2)
-- Tests: `tests/commands/clone-command.test.ts`
+- Tech Design: `/Users/leemoore/code/agent-cli-tools/oc-context-cleaner/docs/tech-design.md` (Flow 2)
+- Tests: `/Users/leemoore/code/agent-cli-tools/oc-context-cleaner/tests/commands/clone-command.test.ts`
 
 ## Task
 
@@ -78,6 +79,7 @@ export async function executeClone(options: CloneOptions): Promise<CloneResult> 
       preserved: originalToolCalls,
     };
 
+    // AC-5.x: Apply tool removal if specified
     if (options.toolRemoval) {
       const resolvedOptions = resolveToolRemovalOptions(options.toolRemoval);
       const result = removeToolCalls(entries, resolvedOptions);
@@ -90,6 +92,7 @@ export async function executeClone(options: CloneOptions): Promise<CloneResult> 
         preserved: originalToolCalls - result.statistics.toolCallsRemoved,
       };
     }
+    // AC-4.7: Clone without --strip-tools preserves all content (no-op for tool removal)
 
     // Generate new session ID
     const newSessionId = generateSessionId();
@@ -330,7 +333,7 @@ npm test
 
 **Expected:**
 - Typecheck passes
-- All 38 tests pass (8 algorithm + 19 edit + 11 clone)
+- All 42 tests pass (12 algorithm + 19 edit + 11 clone)
 
 ## Done When
 
@@ -338,4 +341,4 @@ npm test
 - [ ] `src/commands/clone-command.ts` fully implemented
 - [ ] Session header includes clone metadata
 - [ ] `npm run typecheck` passes
-- [ ] `npm test` passes (38 tests)
+- [ ] `npm test` passes (42 tests: 12 algorithm + 19 edit + 11 clone)

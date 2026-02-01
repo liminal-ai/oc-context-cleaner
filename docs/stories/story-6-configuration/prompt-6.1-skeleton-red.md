@@ -52,6 +52,8 @@ export type ValidatedUserConfiguration = z.infer<typeof UserConfigurationSchema>
 
 Create `src/config/default-configuration.ts`:
 
+**Important:** Import `DEFAULT_STATE_DIR` and `DEFAULT_AGENT_ID` from `paths.ts` — do NOT redefine them.
+
 ```typescript
 import type { ResolvedConfiguration } from "../types/index.js";
 import { DEFAULT_STATE_DIR, DEFAULT_AGENT_ID } from "../io/paths.js";
@@ -221,26 +223,35 @@ export { BUILT_IN_PRESETS, resolvePreset } from "./config/tool-removal-presets.j
 Create `tests/commands/main-command.test.ts`:
 
 ```typescript
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { QUICKSTART_TEXT, mainCommand } from "../../src/commands/main-command.js";
 
 describe("main-command", () => {
   // TC-7.7a: Help flag shows usage
-  it("help is available via citty", () => {
+  it("help is available via citty with all subcommands", () => {
     // citty handles --help automatically
-    // We just verify the command metadata is correct
+    // Verify command metadata and structure is correct for help generation
     expect(mainCommand.meta.name).toBe("occ");
     expect(mainCommand.meta.description).toBeTruthy();
+    expect(mainCommand.meta.description).toContain("Context Cleaner");
+
+    // Verify all subcommands are registered
     expect(mainCommand.subCommands).toBeDefined();
-    expect(Object.keys(mainCommand.subCommands!)).toContain("edit");
-    expect(Object.keys(mainCommand.subCommands!)).toContain("clone");
-    expect(Object.keys(mainCommand.subCommands!)).toContain("list");
-    expect(Object.keys(mainCommand.subCommands!)).toContain("info");
-    expect(Object.keys(mainCommand.subCommands!)).toContain("restore");
+    const subCmds = Object.keys(mainCommand.subCommands!);
+    expect(subCmds).toContain("edit");
+    expect(subCmds).toContain("clone");
+    expect(subCmds).toContain("list");
+    expect(subCmds).toContain("info");
+    expect(subCmds).toContain("restore");
+
+    // Verify quickstart arg is defined for help display
+    expect(mainCommand.args).toBeDefined();
+    expect(mainCommand.args!.quickstart).toBeDefined();
+    expect(mainCommand.args!.quickstart.description).toBeTruthy();
   });
 
-  // TC-7.8a: Quickstart shows condensed help
-  it("quickstart shows condensed help", () => {
+  // TC-7.8a: Quickstart shows condensed help (~250 tokens)
+  it("quickstart text content is agent-friendly", () => {
     expect(QUICKSTART_TEXT).toBeTruthy();
     expect(QUICKSTART_TEXT.length).toBeLessThan(1500); // ~250 tokens ≈ 1000-1500 chars
     expect(QUICKSTART_TEXT).toContain("WHEN TO USE");
@@ -249,6 +260,21 @@ describe("main-command", () => {
     expect(QUICKSTART_TEXT).toContain("occ edit");
     expect(QUICKSTART_TEXT).toContain("occ clone");
     expect(QUICKSTART_TEXT).toContain("occ list");
+    expect(QUICKSTART_TEXT).toContain("occ info");
+    expect(QUICKSTART_TEXT).toContain("occ restore");
+  });
+
+  // TC-7.8b: --quickstart flag prints quickstart text to stdout
+  it("quickstart flag prints to stdout", async () => {
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    // Run the command with quickstart flag
+    await mainCommand.run!({ args: { quickstart: true }, rawArgs: [], cmd: mainCommand });
+
+    // Verify quickstart text was printed
+    expect(consoleSpy).toHaveBeenCalledWith(QUICKSTART_TEXT);
+
+    consoleSpy.mockRestore();
   });
 });
 ```
@@ -257,9 +283,16 @@ describe("main-command", () => {
 
 Create `tests/config/configuration-loader.test.ts`:
 
+**Important:** Mock `node:os` to control `homedir()` return value. Using `vi.stubEnv("HOME", ...)` is unreliable across platforms.
+
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { vol } from "memfs";
+
+// Mock node:os BEFORE importing modules that use it
+vi.mock("node:os", () => ({
+  homedir: vi.fn(() => "/home/testuser"),
+}));
 
 vi.mock("node:fs/promises", async () => {
   const memfs = await import("memfs");
@@ -273,7 +306,6 @@ import {
   getConfigPaths,
 } from "../../src/config/configuration-loader.js";
 import { resolvePreset, resolveToolRemovalOptions } from "../../src/config/tool-removal-presets.js";
-import { DEFAULT_CONFIGURATION } from "../../src/config/default-configuration.js";
 
 describe("configuration-loader", () => {
   beforeEach(() => {
@@ -281,6 +313,9 @@ describe("configuration-loader", () => {
     vi.stubEnv("CLAWDBOT_STATE_DIR", undefined);
     vi.stubEnv("OCC_PRESET", undefined);
     vi.stubEnv("OCC_OUTPUT_FORMAT", undefined);
+    vi.stubEnv("XDG_CONFIG_HOME", undefined);
+    // Set up mock home directory in memfs
+    vol.mkdirSync("/home/testuser", { recursive: true });
   });
 
   afterEach(() => {
@@ -289,64 +324,74 @@ describe("configuration-loader", () => {
 
   // TC-8.1a: Config read from standard location
   it("config read from standard location", async () => {
-    const configDir = "/home/user/.config/occ";
+    const configDir = "/home/testuser/.config/occ";
     vol.mkdirSync(configDir, { recursive: true });
     vol.writeFileSync(
       `${configDir}/config.json`,
       JSON.stringify({ defaultPreset: "aggressive" })
     );
 
-    // Mock home directory
-    vi.stubEnv("HOME", "/home/user");
-
     const paths = getConfigPaths();
-    expect(paths.some((p) => p.includes(".config"))).toBe(true);
+    expect(paths.some((p) => p.includes(".config/occ"))).toBe(true);
+    expect(paths.some((p) => p.startsWith("/home/testuser"))).toBe(true);
   });
 
-  // TC-8.2a: Custom preset from config
-  it("custom preset from config applied", async () => {
-    const config = await loadConfiguration();
-    const merged = mergeWithDefaults({
-      customPresets: {
-        conservative: {
-          name: "conservative",
-          keepTurnsWithTools: 30,
-          truncatePercent: 25,
+  // TC-8.2a: Custom preset from config file works end-to-end
+  it("custom preset from config file applied end-to-end", async () => {
+    // Write config file with custom preset
+    const configDir = "/home/testuser/.config/occ";
+    vol.mkdirSync(configDir, { recursive: true });
+    vol.writeFileSync(
+      `${configDir}/config.json`,
+      JSON.stringify({
+        customPresets: {
+          conservative: {
+            name: "conservative",
+            keepTurnsWithTools: 30,
+            truncatePercent: 25,
+          },
         },
-      },
-    });
+      })
+    );
 
-    const preset = resolvePreset("conservative", merged.customPresets);
+    // Load config from file
+    const config = await loadConfiguration();
+
+    // Verify custom preset is available and works
+    expect(config.customPresets).toHaveProperty("conservative");
+    const preset = resolvePreset("conservative", config.customPresets);
     expect(preset.keepTurnsWithTools).toBe(30);
     expect(preset.truncatePercent).toBe(25);
   });
 
-  // TC-8.3a: Environment variable overrides config
-  it("environment variable overrides config", async () => {
-    vol.mkdirSync("/home/user/.config/occ", { recursive: true });
+  // TC-8.3a: Environment variable overrides config file value
+  it("environment variable overrides config file value", async () => {
+    // Write config file with defaultPreset = "aggressive"
+    const configDir = "/home/testuser/.config/occ";
+    vol.mkdirSync(configDir, { recursive: true });
     vol.writeFileSync(
-      "/home/user/.config/occ/config.json",
+      `${configDir}/config.json`,
       JSON.stringify({ defaultPreset: "aggressive" })
     );
 
-    vi.stubEnv("HOME", "/home/user");
+    // Set env var to override
     vi.stubEnv("OCC_PRESET", "default");
 
-    const envConfig = loadFromEnvironment();
-    // Environment should override
-    if (envConfig.defaultPreset) {
-      expect(envConfig.defaultPreset).toBe("default");
-    }
+    // Load configuration (should merge file + env)
+    const config = await loadConfiguration();
+
+    // Environment variable should win over config file
+    expect(config.defaultPreset).toBe("default");
   });
 
-  // TC-8.4a: CLI flag overrides environment
+  // TC-8.4a: CLI flag overrides environment variable
   it("CLI flag overrides environment variable", () => {
     vi.stubEnv("OCC_PRESET", "default");
 
-    // CLI override happens at command level, not in config loader
-    // This test verifies the precedence logic exists
+    // CLI override happens at command level via resolveToolRemovalOptions
+    // When CLI passes explicit preset, it wins over env var
     const options = resolveToolRemovalOptions({ preset: "aggressive" });
-    expect(options.keepTurnsWithTools).toBe(10); // aggressive
+    expect(options.keepTurnsWithTools).toBe(10); // aggressive preset values
   });
 });
 ```
@@ -366,8 +411,8 @@ npm test
 
 **Expected:**
 - Typecheck passes
-- 57 previous tests pass
-- 6 new tests fail with NotImplementedError (some may pass if static)
+- 64 previous tests pass
+- 7 new tests fail with NotImplementedError (some may pass if static)
 
 ## Done When
 
@@ -377,6 +422,6 @@ npm test
 - [ ] `src/commands/main-command.ts` created with quickstart
 - [ ] `src/cli.ts` created
 - [ ] `src/index.ts` created
-- [ ] `tests/commands/main-command.test.ts` created with 2 tests
-- [ ] `tests/config/configuration-loader.test.ts` created with 4 tests
+- [ ] `tests/commands/main-command.test.ts` created with 3 tests (TC-7.7a, TC-7.8a, TC-7.8b)
+- [ ] `tests/config/configuration-loader.test.ts` created with 4 tests (TC-8.1a through TC-8.4a)
 - [ ] `npm run typecheck` passes

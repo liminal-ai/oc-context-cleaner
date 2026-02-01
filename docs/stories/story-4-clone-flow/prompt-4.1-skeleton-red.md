@@ -1,5 +1,7 @@
 # Prompt 4.1: Clone Flow — Skeleton + Red
 
+> **Note:** This prompt combines skeleton and red phases following the established pattern from previous stories.
+
 ## Context
 
 **Product:** oc-context-cleaner — CLI tool for cleaning OpenClaw session transcripts.
@@ -13,11 +15,75 @@
 **Prerequisites:**
 - Stories 0-3 complete
 - Edit flow implemented
+- `npm test` passes (31 tests: 12 algorithm + 19 edit)
+
+**Note:** Story 2 has 0 direct tests; IO is tested through command tests.
 
 ## Reference Documents
 
-- Tech Design: `docs/tech-design.md` (Flow 2: Clone Session)
-- Feature Spec: `docs/feature-spec.md` (AC-4.x)
+- Tech Design: `/Users/leemoore/code/agent-cli-tools/oc-context-cleaner/docs/tech-design.md` (Flow 2: Clone Session)
+- Feature Spec: `/Users/leemoore/code/agent-cli-tools/oc-context-cleaner/docs/feature-spec.md` (AC-4.x)
+
+## Type Definitions (Reference)
+
+These types are defined in `src/types/operation-types.ts`. Included here for reference:
+
+```typescript
+import type { ToolRemovalOptions } from "./tool-removal-types.js";
+
+/**
+ * Options for clone operation.
+ *
+ * Note: agentId is optional. When omitted, the system auto-detects using
+ * the CLAWDBOT_AGENT_ID env var or defaults to "main".
+ */
+export interface CloneOptions {
+  /** Source session ID */
+  sourceSessionId: string;
+  /** Agent ID (default: from config or "main") */
+  agentId?: string;
+  /** Output path (if undefined, auto-generate in sessions dir) */
+  outputPath?: string;
+  /** Tool removal configuration (if undefined, no stripping) */
+  toolRemoval?: ToolRemovalOptions;
+  /** Skip session index registration */
+  noRegister: boolean;
+  /** Output format */
+  outputFormat: "human" | "json";
+  /** Verbose output */
+  verbose: boolean;
+}
+
+/**
+ * Statistics for clone operations.
+ * Uses "messagesCloned" / "sizeCloned" per spec contract.
+ */
+export interface CloneStatistics {
+  messagesOriginal: number;
+  messagesCloned: number;      // Note: "Cloned" not "After" per spec
+  toolCallsOriginal: number;
+  toolCallsRemoved: number;
+  toolCallsTruncated: number;
+  toolCallsPreserved: number;
+  sizeOriginal: number;        // bytes
+  sizeCloned: number;          // Note: "Cloned" not "After" per spec
+  reductionPercent: number;
+}
+
+/**
+ * Result of clone operation.
+ * Matches spec's CloneResult contract exactly.
+ */
+export interface CloneResult {
+  success: boolean;
+  mode: "clone";
+  sourceSessionId: string;
+  clonedSessionId: string;
+  clonedSessionPath: string;
+  statistics: CloneStatistics;
+  resumeCommand?: string;
+}
+```
 
 ## Task
 
@@ -143,12 +209,14 @@ vi.mock("node:fs/promises", async () => {
 });
 
 // Import after mocking
-import { executeClone, generateSessionId } from "../../src/core/clone-operation-executor.js";
-import { resolveSessionId } from "../../src/io/session-discovery.js";
+import { executeClone } from "../../src/core/clone-operation-executor.js";
 import { readSessionIndex } from "../../src/io/session-index-reader.js";
-import { formatCloneResultHuman, formatCloneResultJson } from "../../src/output/result-formatter.js";
+import { formatCloneResultJson } from "../../src/output/result-formatter.js";
 import { createSessionWithTurns } from "../fixtures/sessions.js";
 import { serializeToJsonl } from "../../src/core/session-parser.js";
+
+// Note: generateSessionId and resolveSessionId are internal to executeClone
+// and not needed as direct imports in tests.
 
 describe("clone-command", () => {
   const testAgentId = "main";
@@ -234,22 +302,27 @@ describe("clone-command", () => {
     expect(header.clonedAt).toBeDefined();
   });
 
-  // TC-4.4a: No partial file on failure
+  // TC-4.4a: No partial file on failure (atomicity test)
+  // This test verifies atomic write behavior: either complete success or no file.
+  // In Red phase: NotImplementedError thrown → test ERRORs (correct TDD behavior)
+  // In Green phase: result returned → assertions verify atomicity
   it("no partial file on failure", async () => {
+    // Use a path in a non-existent directory to trigger write failure
     const badOutputPath = "/nonexistent/directory/output.jsonl";
 
-    await expect(
-      executeClone({
-        sourceSessionId: testSessionId,
-        agentId: testAgentId,
-        outputPath: badOutputPath,
-        noRegister: true,
-        outputFormat: "human",
-        verbose: false,
-      })
-    ).rejects.toThrow();
+    const result = await executeClone({
+      sourceSessionId: testSessionId,
+      agentId: testAgentId,
+      outputPath: badOutputPath,
+      noRegister: true,
+      outputFormat: "human",
+      verbose: false,
+    });
 
-    expect(vol.existsSync(badOutputPath)).toBe(false);
+    // Atomicity invariant: must be complete success OR complete failure
+    // (no partial files left behind)
+    expect(result.success).toBe(false); // Write to bad path should fail
+    expect(vol.existsSync(badOutputPath)).toBe(false); // No partial file
   });
 
   // TC-4.5a: Custom output path respected
@@ -394,13 +467,15 @@ describe("clone-command", () => {
 
 ```bash
 npm run typecheck
+npm run lint
 npm test
 ```
 
 **Expected:**
 - Typecheck passes
-- 27 previous tests pass
-- 11 clone tests fail with NotImplementedError
+- Lint passes
+- 31 previous tests pass
+- 11 clone tests ERROR with NotImplementedError
 
 ## Done When
 
@@ -408,4 +483,5 @@ npm test
 - [ ] `src/commands/clone-command.ts` created with stubs
 - [ ] `tests/commands/clone-command.test.ts` created with 11 tests
 - [ ] `npm run typecheck` passes
-- [ ] `npm test` runs (27 pass, 11 fail)
+- [ ] `npm run lint` passes
+- [ ] `npm test` runs (31 pass, 11 ERROR due to NotImplementedError)

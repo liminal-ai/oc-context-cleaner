@@ -16,16 +16,17 @@
 npm test -- --reporter=verbose
 ```
 
-**Expected:** All 63 tests pass.
+**Expected:** All 71 tests pass.
 
 | TC | Test | Expected |
 |----|------|----------|
-| TC-7.7a | help available | citty handles --help |
-| TC-7.8a | quickstart | ~250 tokens, includes presets/commands |
+| TC-7.7a | help available | citty handles --help, all subcommands registered |
+| TC-7.8a | quickstart content | ~250 tokens, includes presets/commands |
+| TC-7.8b | quickstart output | --quickstart prints QUICKSTART_TEXT to stdout |
 | TC-8.1a | config location | Checks ~/.config/occ, etc. |
-| TC-8.2a | custom preset | Custom presets work |
-| TC-8.3a | env override | OCC_* env vars work |
-| TC-8.4a | CLI override | Flags override env |
+| TC-8.2a | custom preset | Custom presets from config file work end-to-end |
+| TC-8.3a | env override | OCC_PRESET env var overrides config file value |
+| TC-8.4a | CLI override | Flags override env vars |
 
 ### 2. TypeScript Compilation
 
@@ -61,7 +62,7 @@ Verify these paths are checked:
 - `$XDG_CONFIG_HOME/occ/config.json`
 - `~/.config/occ/config.json`
 - `~/.occrc.json`
-- `~/.occ.json`
+- `~/.occrc`
 - `./.occrc.json`
 - `./occ.config.json`
 
@@ -115,12 +116,13 @@ node dist/cli.js edit --help
 
 ## Pass Criteria
 
-- [ ] All 63 tests pass
+- [ ] All 71 tests pass
 - [ ] No TypeScript errors
 - [ ] CLI builds and runs
 - [ ] Help displays correctly
 - [ ] Quickstart is ~250 tokens
-- [ ] Config priority correct
+- [ ] Config priority correct (CLI > env > file > defaults)
+- [ ] c12 config loading works
 - [ ] SDK exports complete
 
 ## Feature Complete Checklist
@@ -133,8 +135,10 @@ After this story:
 - [ ] `occ restore <id>` works
 - [ ] `occ --help` works
 - [ ] `occ --quickstart` works
-- [ ] Configuration loading works
-- [ ] All 63 tests pass
+- [ ] Configuration loading works (c12-based)
+- [ ] Custom presets from config file work
+- [ ] Environment variables override config file
+- [ ] All 71 tests pass
 - [ ] Ready for manual testing with real OpenClaw
 
 ## Fail Actions

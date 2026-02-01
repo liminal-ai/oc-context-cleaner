@@ -12,7 +12,7 @@
 
 **Prerequisites:**
 - Story 6 Skeleton+Red complete
-- 6 config/main tests
+- 7 config/main tests
 
 ## Task
 
@@ -22,40 +22,50 @@ Implement configuration loading and complete the CLI.
 
 Replace stubs in `src/config/configuration-loader.ts`:
 
+**Important:** Use the `c12` library for config loading as specified in tech-design. c12 handles loading from multiple locations, merging configs, and environment variable overrides.
+
 ```typescript
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { loadConfig } from "c12";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import type { ResolvedConfiguration, UserConfiguration } from "../types/index.js";
 import { DEFAULT_CONFIGURATION } from "./default-configuration.js";
 import { UserConfigurationSchema } from "./configuration-schema.js";
 
 /**
- * Load configuration from all sources.
+ * Load configuration from all sources using c12.
+ *
+ * Priority (highest to lowest):
+ * 1. CLI flags (not handled here)
+ * 2. Environment variables
+ * 3. Config file
+ * 4. Defaults
  */
 export async function loadConfiguration(): Promise<ResolvedConfiguration> {
-  // Load from environment first
+  // Load from environment first (highest priority after CLI)
   const envConfig = loadFromEnvironment();
 
-  // Try to load from config file
-  let fileConfig: UserConfiguration = {};
-  const configPaths = getConfigPaths();
+  // Use c12 to load config from standard locations
+  const { config: fileConfig } = await loadConfig<UserConfiguration>({
+    name: "occ",
+    defaults: {},
+    // c12 will check: occ.config.{js,ts,json}, .occrc, .occrc.json, package.json#occ
+    rcFile: ".occrc",
+    globalRc: true, // Check ~/.config/occ/ and ~/.occrc
+  });
 
-  for (const configPath of configPaths) {
-    try {
-      const content = await readFile(configPath, "utf-8");
-      const parsed = JSON.parse(content);
-      const validated = UserConfigurationSchema.parse(parsed);
-      fileConfig = validated;
-      break; // Use first found config
-    } catch {
-      // Config file not found or invalid, continue
+  // Validate file config if present
+  let validatedFileConfig: UserConfiguration = {};
+  if (fileConfig && Object.keys(fileConfig).length > 0) {
+    const result = UserConfigurationSchema.safeParse(fileConfig);
+    if (result.success) {
+      validatedFileConfig = result.data;
     }
   }
 
   // Merge: defaults < file < environment
   const merged = mergeWithDefaults({
-    ...fileConfig,
+    ...validatedFileConfig,
     ...envConfig,
   });
 
@@ -115,18 +125,21 @@ export function loadFromEnvironment(): Partial<UserConfiguration> {
 
 /**
  * Get config file paths to check.
+ * Note: c12 handles most of this, but we expose paths for testing.
  */
 export function getConfigPaths(): string[] {
   const home = homedir();
   return [
-    // XDG config
+    // XDG config (c12 globalRc checks this)
     join(process.env.XDG_CONFIG_HOME || join(home, ".config"), "occ", "config.json"),
-    // Home directory
+    // Home directory rc files
     join(home, ".occrc.json"),
-    join(home, ".occ.json"),
-    // Current directory
+    join(home, ".occrc"),
+    // Current directory (c12 checks these by default)
     join(process.cwd(), ".occrc.json"),
     join(process.cwd(), "occ.config.json"),
+    join(process.cwd(), "occ.config.ts"),
+    join(process.cwd(), "occ.config.js"),
   ];
 }
 ```
@@ -231,13 +244,11 @@ runMain(mainCommand);
 
 Update `src/config/default-configuration.ts`:
 
+**Important:** Import `DEFAULT_STATE_DIR` and `DEFAULT_AGENT_ID` from `paths.ts`. Do NOT redefine them here to avoid duplication.
+
 ```typescript
 import type { ResolvedConfiguration } from "../types/index.js";
-import { homedir } from "node:os";
-import { join } from "node:path";
-
-export const DEFAULT_STATE_DIR = join(homedir(), ".clawdbot");
-export const DEFAULT_AGENT_ID = "main";
+import { DEFAULT_STATE_DIR, DEFAULT_AGENT_ID } from "../io/paths.js";
 
 export const DEFAULT_CONFIGURATION: ResolvedConfiguration = {
   stateDirectory: DEFAULT_STATE_DIR,
@@ -249,71 +260,55 @@ export const DEFAULT_CONFIGURATION: ResolvedConfiguration = {
 };
 ```
 
-### 5. Update Paths to Use Config
+### 5. Wire Config into CLI Entry Point
 
-Update `src/io/paths.ts` to use defaults from config:
+Update `src/cli.ts` to load config at startup and make it available to commands:
 
 ```typescript
-import { homedir } from "node:os";
-import { join } from "node:path";
+#!/usr/bin/env node
+import { runMain } from "citty";
+import { mainCommand } from "./commands/main-command.js";
+import { loadConfiguration } from "./config/configuration-loader.js";
+import type { ResolvedConfiguration } from "./types/index.js";
+
+// Global config instance (loaded once at startup)
+let resolvedConfig: ResolvedConfiguration | null = null;
 
 /**
- * Default state directory for OpenClaw.
+ * Get the resolved configuration.
+ * Lazy-loads on first access.
  */
-export const DEFAULT_STATE_DIR = join(homedir(), ".clawdbot");
-
-/**
- * Default agent ID.
- */
-export const DEFAULT_AGENT_ID = "main";
-
-/**
- * Get the state directory, respecting environment override.
- */
-export function getStateDirectory(): string {
-  return process.env.CLAWDBOT_STATE_DIR || DEFAULT_STATE_DIR;
+export async function getConfig(): Promise<ResolvedConfiguration> {
+  if (!resolvedConfig) {
+    resolvedConfig = await loadConfiguration();
+  }
+  return resolvedConfig;
 }
 
-/**
- * Get the sessions directory for an agent.
- */
-export function getSessionsDirectory(agentId: string = DEFAULT_AGENT_ID): string {
-  return join(getStateDirectory(), "agents", agentId, "sessions");
-}
-
-/**
- * Get the path to a session file.
- */
-export function getSessionPath(sessionId: string, agentId: string = DEFAULT_AGENT_ID): string {
-  return join(getSessionsDirectory(agentId), `${sessionId}.jsonl`);
-}
-
-/**
- * Get the path to the session index file.
- */
-export function getSessionIndexPath(agentId: string = DEFAULT_AGENT_ID): string {
-  return join(getSessionsDirectory(agentId), "sessions.json");
-}
-
-/**
- * Get the backup path for a session with monotonic numbering.
- */
-export function getBackupPath(
-  sessionId: string,
-  backupNumber: number,
-  agentId: string = DEFAULT_AGENT_ID
-): string {
-  return join(getSessionsDirectory(agentId), `${sessionId}.backup.${backupNumber}.jsonl`);
-}
-
-/**
- * Resolve agent ID from environment or flag.
- */
-export function resolveAgentId(flagValue?: string): string {
-  if (flagValue) return flagValue;
-  return process.env.CLAWDBOT_AGENT_ID || DEFAULT_AGENT_ID;
-}
+// Run the CLI
+runMain(mainCommand);
 ```
+
+**Note:** Commands access config via `getConfig()` when needed. CLI flags override config values at the command level (precedence: CLI flags > env vars > config file > defaults).
+
+### 6. Config-Command Integration Pattern
+
+When commands need config values, they should:
+
+1. Call `getConfig()` to get resolved configuration
+2. Check CLI flags first (highest priority)
+3. Fall back to config values
+
+Example pattern in a command:
+```typescript
+// In edit-command.ts run handler:
+const config = await getConfig();
+const preset = args.preset || config.defaultPreset;
+const outputFormat = args.json ? "json" : config.outputFormat;
+const verbose = args.verbose || config.verboseOutput;
+```
+
+**Note:** `src/io/paths.ts` already exists with `DEFAULT_STATE_DIR` and `DEFAULT_AGENT_ID`. Do NOT modify it or duplicate those constants.
 
 ## Constraints
 
@@ -330,14 +325,16 @@ npm test
 
 **Expected:**
 - Typecheck passes
-- All 63 tests pass
+- All 71 tests pass
 
 ## Done When
 
-- [ ] `src/config/configuration-loader.ts` fully implemented
+- [ ] `src/config/configuration-loader.ts` fully implemented with c12
+- [ ] `src/config/default-configuration.ts` imports from paths.ts (no duplicate constants)
 - [ ] `src/commands/main-command.ts` fully implemented
-- [ ] `src/cli.ts` ready to run
-- [ ] Config loading works (file, env, defaults)
+- [ ] `src/cli.ts` ready to run with config loading
+- [ ] Config loading works (file via c12, env, defaults)
+- [ ] Config precedence correct: CLI flags > env vars > config file > defaults
 - [ ] Quickstart displays correctly
 - [ ] `npm run typecheck` passes
-- [ ] `npm test` passes (63 tests)
+- [ ] `npm test` passes (71 tests)

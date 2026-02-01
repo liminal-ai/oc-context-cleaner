@@ -30,7 +30,6 @@ Create `src/io/paths.ts`:
 ```typescript
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { NotImplementedError } from "../errors.js";
 
 /**
  * Default state directory for OpenClaw.

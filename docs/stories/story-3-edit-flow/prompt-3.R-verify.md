@@ -16,7 +16,7 @@
 npm test -- --reporter=verbose
 ```
 
-**Expected:** 27 tests pass (8 algorithm + 19 edit)
+**Expected:** 31 tests pass (12 previous + 19 edit)
 
 Verify each edit test:
 
@@ -110,12 +110,16 @@ npm test -- --grep "edit-command"
 
 # Typecheck
 npm run typecheck
+
+# Lint
+npm run lint
 ```
 
 ## Pass Criteria
 
-- [ ] All 27 tests pass
+- [ ] All 31 tests pass (12 previous + 19 edit)
 - [ ] No TypeScript errors
+- [ ] No lint errors
 - [ ] Backup rotation correct
 - [ ] Atomic operations verified
 - [ ] Session ID preserved
