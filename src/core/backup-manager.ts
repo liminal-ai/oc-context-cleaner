@@ -1,11 +1,11 @@
 import { readdir, unlink } from "node:fs/promises";
+import { RestoreError } from "../errors.js";
 import {
 	getBackupPath,
-	getSessionsDirectory,
 	getSessionPath,
+	getSessionsDirectory,
 } from "../io/paths.js";
 import { copyFileAtomic } from "../io/session-file-writer.js";
-import { RestoreError } from "../errors.js";
 
 const MAX_BACKUPS = 5;
 

@@ -1,13 +1,13 @@
 import { defineCommand } from "citty";
-import { getSessionsSortedByTime } from "../io/session-index-reader.js";
-import { listAvailableAgents, agentExists } from "../io/session-discovery.js";
+import { getConfig } from "../config/get-config.js";
+import { AgentNotFoundError } from "../errors.js";
 import { resolveAgentId } from "../io/paths.js";
+import { agentExists, listAvailableAgents } from "../io/session-discovery.js";
+import { getSessionsSortedByTime } from "../io/session-index-reader.js";
 import {
 	formatSessionListHuman,
 	formatSessionListJson,
 } from "../output/list-formatter.js";
-import { AgentNotFoundError } from "../errors.js";
-import { getConfig } from "../config/get-config.js";
 
 export const listCommand = defineCommand({
 	meta: {
@@ -31,21 +31,25 @@ export const listCommand = defineCommand({
 		},
 	},
 	async run({ args }) {
+		let outputFormat: "json" | "human" = "human";
 		try {
 			const config = await getConfig();
-			const outputFormat = args.json ? "json" : config.outputFormat;
+			outputFormat = args.json ? "json" : config.outputFormat;
 			const agentId = resolveAgentId(args.agent, config.defaultAgentId);
 
 			// Verify agent exists
-			if (!(await agentExists(agentId))) {
-				const available = await listAvailableAgents();
+			if (!(await agentExists(agentId, config.stateDirectory))) {
+				const available = await listAvailableAgents(config.stateDirectory);
 				throw new AgentNotFoundError(
 					`Agent '${agentId}' not found`,
 					available.length > 0 ? available : undefined,
 				);
 			}
 
-			let sessions = await getSessionsSortedByTime(agentId);
+			let sessions = await getSessionsSortedByTime(
+				agentId,
+				config.stateDirectory,
+			);
 
 			// Apply limit if specified
 			if (args.limit) {
@@ -63,8 +67,8 @@ export const listCommand = defineCommand({
 
 			process.exitCode = 0;
 		} catch (error) {
-			if (args.json) {
-				console.log(
+			if (outputFormat === "json") {
+				console.error(
 					JSON.stringify({ success: false, error: (error as Error).message }),
 				);
 			} else {

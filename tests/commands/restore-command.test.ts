@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { vol } from "memfs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("node:fs/promises", async () => {
 	const memfs = await import("memfs");
@@ -7,8 +7,8 @@ vi.mock("node:fs/promises", async () => {
 });
 
 import { restoreFromBackup } from "../../src/core/backup-manager.js";
-import { createSessionWithTurns } from "../fixtures/sessions.js";
 import { serializeToJsonl } from "../../src/core/session-parser.js";
+import { createSessionWithTurns } from "../fixtures/sessions.js";
 
 describe("restore-command", () => {
 	const testAgentId = "main";

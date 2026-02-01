@@ -1,7 +1,7 @@
-import { writeFile, rename, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { SessionsIndex, SessionIndexEntry } from "../types/index.js";
+import type { SessionIndexEntry, SessionsIndex } from "../types/index.js";
 import { getSessionIndexPath } from "./paths.js";
 import { readSessionIndex } from "./session-index-reader.js";
 

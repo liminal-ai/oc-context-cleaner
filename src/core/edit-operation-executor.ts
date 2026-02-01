@@ -1,23 +1,26 @@
+import { getConfig } from "../config/get-config.js";
+import { resolveToolRemovalOptions } from "../config/tool-removal-presets.js";
+import { EditOperationError } from "../errors.js";
+import { getSessionPath, resolveAgentId } from "../io/paths.js";
+import { resolveSessionId } from "../io/session-discovery.js";
+import {
+	getSessionFileStats,
+	readSessionEntries,
+} from "../io/session-file-reader.js";
+import { writeSessionFile } from "../io/session-file-writer.js";
+import { updateSessionTimestamp } from "../io/session-index-writer.js";
 import type {
 	EditOptions,
 	EditResult,
 	EditStatistics,
-	SessionEntry,
 } from "../types/index.js";
-import { resolveSessionId } from "../io/session-discovery.js";
-import {
-	readSessionEntries,
-	getSessionFileStats,
-} from "../io/session-file-reader.js";
-import { writeSessionFile } from "../io/session-file-writer.js";
-import { getSessionPath, resolveAgentId } from "../io/paths.js";
 import { createBackup } from "./backup-manager.js";
+import {
+	calculateBaseStatistics,
+	countToolCalls,
+	isMessageEntry,
+} from "./session-parser.js";
 import { removeToolCalls } from "./tool-call-remover.js";
-import { resolveToolRemovalOptions } from "../config/tool-removal-presets.js";
-import { getConfig } from "../config/get-config.js";
-import { EditOperationError } from "../errors.js";
-import { isMessageEntry } from "./session-parser.js";
-import { getToolCallIds } from "./turn-boundary-calculator.js";
 
 /**
  * Execute edit operation on a session.
@@ -78,25 +81,34 @@ export async function executeEdit(options: EditOptions): Promise<EditResult> {
 				original: originalToolCalls,
 				removed: result.statistics.toolCallsRemoved,
 				truncated: result.statistics.toolCallsTruncated,
-				preserved: originalToolCalls - result.statistics.toolCallsRemoved,
+				preserved:
+					originalToolCalls -
+					result.statistics.toolCallsRemoved -
+					result.statistics.toolCallsTruncated,
 			};
 		}
 
 		// Write modified session
 		await writeSessionFile(sessionPath, processedEntries);
 
+		// Update session index timestamp
+		await updateSessionTimestamp(sessionId, agentId, config.stateDirectory);
+
 		// Get new stats
 		const newStats = await getSessionFileStats(sessionPath);
 		const newMessages = processedEntries.filter(isMessageEntry).length;
 
 		// Calculate statistics
-		const statistics = calculateEditStatistics(
+		const baseStats = calculateBaseStatistics(
 			originalStats.sizeBytes,
 			newStats.sizeBytes,
 			originalMessages,
 			newMessages,
 			toolStats,
 		);
+		const statistics: EditStatistics = {
+			...baseStats,
+		};
 
 		return {
 			success: true,
@@ -111,48 +123,4 @@ export async function executeEdit(options: EditOptions): Promise<EditResult> {
 			error as Error,
 		);
 	}
-}
-
-/**
- * Calculate statistics for edit operation.
- */
-export function calculateEditStatistics(
-	originalSize: number,
-	newSize: number,
-	originalMessages: number,
-	newMessages: number,
-	toolStats: {
-		original: number;
-		removed: number;
-		truncated: number;
-		preserved: number;
-	},
-): EditStatistics {
-	const reduction =
-		originalSize > 0 ? ((originalSize - newSize) / originalSize) * 100 : 0;
-
-	return {
-		messagesOriginal: originalMessages,
-		messagesAfter: newMessages,
-		toolCallsOriginal: toolStats.original,
-		toolCallsRemoved: toolStats.removed,
-		toolCallsTruncated: toolStats.truncated,
-		toolCallsPreserved: toolStats.preserved,
-		sizeOriginal: originalSize,
-		sizeAfter: newSize,
-		reductionPercent: Math.max(0, reduction),
-	};
-}
-
-/**
- * Count tool calls in entries.
- */
-function countToolCalls(entries: readonly SessionEntry[]): number {
-	let count = 0;
-	for (const entry of entries) {
-		if (isMessageEntry(entry)) {
-			count += getToolCallIds(entry).length;
-		}
-	}
-	return count;
 }

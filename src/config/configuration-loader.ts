@@ -1,12 +1,12 @@
-import { loadConfig } from "c12";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { loadConfig } from "c12";
 import type {
 	ResolvedConfiguration,
 	UserConfiguration,
 } from "../types/index.js";
-import { DEFAULT_CONFIGURATION } from "./default-configuration.js";
 import { UserConfigurationSchema } from "./configuration-schema.js";
+import { DEFAULT_CONFIGURATION } from "./default-configuration.js";
 
 /**
  * Load configuration from all sources using c12.

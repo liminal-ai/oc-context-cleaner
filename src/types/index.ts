@@ -1,54 +1,52 @@
 // Session types
-export type {
-	SessionHeader,
-	ClonedSessionHeader,
-	ContentBlock,
-	TextBlock,
-	ToolCallBlock,
-	ThinkingBlock,
-	MessageRole,
-	UsageInfo,
-	ConversationMessage,
-	MessageEntry,
-	SessionEntry,
-	ParsedSession,
-	SessionIndexEntry,
-	SessionsIndex,
-} from "./session-types.js";
-
-// Operation types
-export type {
-	EditOptions,
-	EditStatistics,
-	EditResult,
-	CloneOptions,
-	CloneStatistics,
-	CloneResult,
-	ListOptions,
-	InfoOptions,
-	SessionInfo,
-	RestoreOptions,
-} from "./operation-types.js";
-
-// Tool removal types
-export type {
-	TurnBoundary,
-	ToolRemovalPreset,
-	ToolRemovalOptions,
-	ResolvedToolRemovalOptions,
-	ToolRemovalStatistics,
-	ToolRemovalResult,
-} from "./tool-removal-types.js";
-
-export {
-	TRUNCATION_LIMITS,
-	truncateString,
-	truncateArguments,
-	truncateToolResult,
-} from "./tool-removal-types.js";
 
 // Configuration types
 export type {
-	UserConfiguration,
 	ResolvedConfiguration,
+	UserConfiguration,
 } from "./configuration-types.js";
+
+// Operation types
+export type {
+	CloneOptions,
+	CloneResult,
+	CloneStatistics,
+	EditOptions,
+	EditResult,
+	EditStatistics,
+	InfoOptions,
+	ListOptions,
+	RestoreOptions,
+	SessionInfo,
+} from "./operation-types.js";
+export type {
+	ClonedSessionHeader,
+	ContentBlock,
+	ConversationMessage,
+	MessageEntry,
+	MessageRole,
+	ParsedSession,
+	SessionEntry,
+	SessionHeader,
+	SessionIndexEntry,
+	SessionsIndex,
+	TextBlock,
+	ThinkingBlock,
+	ToolCallBlock,
+	UsageInfo,
+} from "./session-types.js";
+// Tool removal types
+export type {
+	ResolvedToolRemovalOptions,
+	ToolRemovalOptions,
+	ToolRemovalPreset,
+	ToolRemovalResult,
+	ToolRemovalStatistics,
+	TurnBoundary,
+} from "./tool-removal-types.js";
+export {
+	TRUNCATION_LIMITS,
+	truncateArguments,
+	truncateString,
+	truncateToolResult,
+} from "./tool-removal-types.js";

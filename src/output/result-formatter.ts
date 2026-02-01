@@ -1,4 +1,4 @@
-import type { EditResult, CloneResult } from "../types/index.js";
+import type { CloneResult, EditResult } from "../types/index.js";
 
 /**
  * Format edit result for human output.

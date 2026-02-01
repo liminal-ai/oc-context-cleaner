@@ -1,7 +1,7 @@
 import type {
 	MessageEntry,
-	TurnBoundary,
 	ToolCallBlock,
+	TurnBoundary,
 } from "../types/index.js";
 
 /**

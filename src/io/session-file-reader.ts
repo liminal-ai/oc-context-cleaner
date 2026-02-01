@@ -1,10 +1,10 @@
 import { readFile, stat } from "node:fs/promises";
-import type { SessionEntry, ParsedSession } from "../types/index.js";
 import {
 	parseJsonl,
 	separateHeaderAndMessages,
 } from "../core/session-parser.js";
 import { SessionNotFoundError } from "../errors.js";
+import type { ParsedSession, SessionEntry } from "../types/index.js";
 
 /**
  * Check if an error is an ENOENT (file not found) error.

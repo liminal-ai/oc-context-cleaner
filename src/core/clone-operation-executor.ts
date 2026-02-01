@@ -1,5 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { getConfig } from "../config/get-config.js";
+import { resolveToolRemovalOptions } from "../config/tool-removal-presets.js";
+import { CloneOperationError } from "../errors.js";
+import {
+	getSessionPath,
+	getSessionsDirectory,
+	resolveAgentId,
+} from "../io/paths.js";
+import { resolveSessionId } from "../io/session-discovery.js";
+import {
+	getSessionFileStats,
+	readSessionEntries,
+} from "../io/session-file-reader.js";
+import { writeSessionFile } from "../io/session-file-writer.js";
+import { addSessionToIndex } from "../io/session-index-writer.js";
 import type {
 	CloneOptions,
 	CloneResult,
@@ -7,24 +22,13 @@ import type {
 	SessionEntry,
 	SessionHeader,
 } from "../types/index.js";
-import { resolveSessionId } from "../io/session-discovery.js";
 import {
-	readSessionEntries,
-	getSessionFileStats,
-} from "../io/session-file-reader.js";
-import { writeSessionFile } from "../io/session-file-writer.js";
-import { addSessionToIndex } from "../io/session-index-writer.js";
-import {
-	getSessionPath,
-	getSessionsDirectory,
-	resolveAgentId,
-} from "../io/paths.js";
+	calculateBaseStatistics,
+	countToolCalls,
+	isMessageEntry,
+	isSessionHeader,
+} from "./session-parser.js";
 import { removeToolCalls } from "./tool-call-remover.js";
-import { resolveToolRemovalOptions } from "../config/tool-removal-presets.js";
-import { getConfig } from "../config/get-config.js";
-import { CloneOperationError } from "../errors.js";
-import { isSessionHeader, isMessageEntry } from "./session-parser.js";
-import { getToolCallIds } from "./turn-boundary-calculator.js";
 
 /**
  * Execute clone operation on a session.
@@ -85,7 +89,10 @@ export async function executeClone(
 				original: originalToolCalls,
 				removed: result.statistics.toolCallsRemoved,
 				truncated: result.statistics.toolCallsTruncated,
-				preserved: originalToolCalls - result.statistics.toolCallsRemoved,
+				preserved:
+					originalToolCalls -
+					result.statistics.toolCallsRemoved -
+					result.statistics.toolCallsTruncated,
 			};
 		}
 		// AC-4.7: Clone without --strip-tools preserves all content (no-op for tool removal)
@@ -116,7 +123,7 @@ export async function executeClone(
 		const newMessages = processedEntries.filter(isMessageEntry).length;
 
 		// Register in session index (unless --no-register)
-		if (!options.noRegister && !options.outputPath) {
+		if (!options.noRegister) {
 			await addSessionToIndex(
 				newSessionId,
 				agentId,
@@ -128,13 +135,24 @@ export async function executeClone(
 		}
 
 		// Calculate statistics
-		const statistics = calculateCloneStatistics(
+		const baseStats = calculateBaseStatistics(
 			originalStats.sizeBytes,
 			newStats.sizeBytes,
 			originalMessages,
 			newMessages,
 			toolStats,
 		);
+		const statistics: CloneStatistics = {
+			messagesOriginal: baseStats.messagesOriginal,
+			messagesCloned: baseStats.messagesAfter,
+			toolCallsOriginal: baseStats.toolCallsOriginal,
+			toolCallsRemoved: baseStats.toolCallsRemoved,
+			toolCallsTruncated: baseStats.toolCallsTruncated,
+			toolCallsPreserved: baseStats.toolCallsPreserved,
+			sizeOriginal: baseStats.sizeOriginal,
+			sizeCloned: baseStats.sizeAfter,
+			reductionPercent: baseStats.reductionPercent,
+		};
 
 		return {
 			success: true,
@@ -181,48 +199,4 @@ function updateSessionHeader(
 		}
 		return entry;
 	});
-}
-
-/**
- * Calculate statistics for clone operation.
- */
-export function calculateCloneStatistics(
-	originalSize: number,
-	newSize: number,
-	originalMessages: number,
-	newMessages: number,
-	toolStats: {
-		original: number;
-		removed: number;
-		truncated: number;
-		preserved: number;
-	},
-): CloneStatistics {
-	const reduction =
-		originalSize > 0 ? ((originalSize - newSize) / originalSize) * 100 : 0;
-
-	return {
-		messagesOriginal: originalMessages,
-		messagesCloned: newMessages,
-		toolCallsOriginal: toolStats.original,
-		toolCallsRemoved: toolStats.removed,
-		toolCallsTruncated: toolStats.truncated,
-		toolCallsPreserved: toolStats.preserved,
-		sizeOriginal: originalSize,
-		sizeCloned: newSize,
-		reductionPercent: Math.max(0, reduction),
-	};
-}
-
-/**
- * Count tool calls in entries.
- */
-function countToolCalls(entries: readonly SessionEntry[]): number {
-	let count = 0;
-	for (const entry of entries) {
-		if (isMessageEntry(entry)) {
-			count += getToolCallIds(entry).length;
-		}
-	}
-	return count;
 }

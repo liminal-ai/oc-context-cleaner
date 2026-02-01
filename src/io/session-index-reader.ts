@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { SessionsIndex, SessionIndexEntry } from "../types/index.js";
+import type { SessionIndexEntry, SessionsIndex } from "../types/index.js";
 import { getSessionIndexPath } from "./paths.js";
 
 /**

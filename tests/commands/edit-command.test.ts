@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { vol } from "memfs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the filesystem
 vi.mock("node:fs/promises", async () => {
@@ -7,19 +7,19 @@ vi.mock("node:fs/promises", async () => {
 	return memfs.fs.promises;
 });
 
-// Import after mocking
-import { executeEdit } from "../../src/core/edit-operation-executor.js";
 import {
 	createBackup,
 	getBackupNumbers,
 } from "../../src/core/backup-manager.js";
+// Import after mocking
+import { executeEdit } from "../../src/core/edit-operation-executor.js";
+import { serializeToJsonl } from "../../src/core/session-parser.js";
 import { resolveSessionId } from "../../src/io/session-discovery.js";
 import {
 	formatEditResultHuman,
 	formatEditResultJson,
 } from "../../src/output/result-formatter.js";
 import { createSessionWithTurns } from "../fixtures/sessions.js";
-import { serializeToJsonl } from "../../src/core/session-parser.js";
 
 describe("edit-command", () => {
 	const testAgentId = "main";

@@ -1,8 +1,8 @@
-import { writeFile, rename, unlink, readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { SessionEntry } from "../types/index.js";
 import { serializeToJsonl } from "../core/session-parser.js";
+import type { SessionEntry } from "../types/index.js";
 
 /**
  * Write session entries to a file atomically.

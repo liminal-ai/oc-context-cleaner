@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Create hoisted mock function that's available during vi.mock hoisting
 const mockLoadConfig = vi.hoisted(() => vi.fn());
@@ -14,10 +14,10 @@ vi.mock("c12", () => ({
 }));
 
 import {
-	loadConfiguration,
 	getConfigPaths,
-	mergeWithDefaults,
+	loadConfiguration,
 	loadFromEnvironment,
+	mergeWithDefaults,
 } from "../../src/config/configuration-loader.js";
 import {
 	resolvePreset,

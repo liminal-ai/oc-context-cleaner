@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { vol } from "memfs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the filesystem
 vi.mock("node:fs/promises", async () => {
@@ -9,10 +9,10 @@ vi.mock("node:fs/promises", async () => {
 
 // Import after mocking
 import { executeClone } from "../../src/core/clone-operation-executor.js";
+import { serializeToJsonl } from "../../src/core/session-parser.js";
 import { readSessionIndex } from "../../src/io/session-index-reader.js";
 import { formatCloneResultJson } from "../../src/output/result-formatter.js";
 import { createSessionWithTurns } from "../fixtures/sessions.js";
-import { serializeToJsonl } from "../../src/core/session-parser.js";
 
 // Note: generateSessionId and resolveSessionId are internal to executeClone
 // and not needed as direct imports in tests.

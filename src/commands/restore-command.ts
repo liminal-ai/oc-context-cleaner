@@ -1,8 +1,9 @@
 import { defineCommand } from "citty";
-import { resolveSessionId } from "../io/session-discovery.js";
+import { getConfig } from "../config/get-config.js";
 import { restoreFromBackup } from "../core/backup-manager.js";
-import { resolveAgentId } from "../io/paths.js";
 import { RestoreError } from "../errors.js";
+import { resolveAgentId } from "../io/paths.js";
+import { resolveSessionId } from "../io/session-discovery.js";
 
 export const restoreCommand = defineCommand({
 	meta: {
@@ -22,7 +23,6 @@ export const restoreCommand = defineCommand({
 	},
 	async run({ args }) {
 		try {
-			const { getConfig } = await import("../config/get-config.js");
 			const config = await getConfig();
 			const agentId = resolveAgentId(args.agent, config.defaultAgentId);
 			const sessionId = await resolveSessionId(

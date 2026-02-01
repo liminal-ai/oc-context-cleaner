@@ -1,9 +1,9 @@
-import type {
-	ToolRemovalPreset,
-	ToolRemovalOptions,
-	ResolvedToolRemovalOptions,
-} from "../types/index.js";
 import { UnknownPresetError } from "../errors.js";
+import type {
+	ResolvedToolRemovalOptions,
+	ToolRemovalOptions,
+	ToolRemovalPreset,
+} from "../types/index.js";
 
 export const BUILT_IN_PRESETS: Record<string, ToolRemovalPreset> = {
 	default: {

@@ -1,18 +1,18 @@
 import type {
-	SessionEntry,
+	ContentBlock,
 	MessageEntry,
 	ResolvedToolRemovalOptions,
+	SessionEntry,
 	ToolRemovalResult,
 	ToolRemovalStatistics,
 	TurnBoundary,
-	ContentBlock,
 } from "../types/index.js";
 import { truncateArguments, truncateToolResult } from "../types/index.js";
+import { isMessageEntry, isSessionHeader } from "./session-parser.js";
 import {
-	identifyTurnBoundaries,
 	getToolCallIds,
+	identifyTurnBoundaries,
 } from "./turn-boundary-calculator.js";
-import { isSessionHeader, isMessageEntry } from "./session-parser.js";
 
 /**
  * Remove/truncate tool calls from session entries based on preset rules.
@@ -41,8 +41,9 @@ export function removeToolCalls(
 	const allTurns = identifyTurnBoundaries(messages);
 	const turnsWithTools = allTurns.filter((t) => t.hasToolCalls);
 
-	// Determine if we're touching any tools (for thinking block removal)
-	const willTouchTools = turnsWithTools.length > 0;
+	// Always strip thinking blocks when tool removal is requested,
+	// regardless of whether the session has any tool calls
+	const shouldStripThinkingBlocks = true;
 
 	// Classify turns
 	const classified = classifyTurns(turnsWithTools, options);
@@ -160,9 +161,9 @@ export function removeToolCalls(
 		return msg;
 	});
 
-	// Strip thinking blocks when any tools are touched
+	// Strip thinking blocks when tool removal is requested
 	// This reduces context size since thinking blocks are typically large
-	const thinkingStrippedMessages = willTouchTools
+	const thinkingStrippedMessages = shouldStripThinkingBlocks
 		? cleanedMessages.map((msg) => {
 				if (
 					msg.message.role === "assistant" &&
@@ -281,6 +282,7 @@ export function removeToolCallsFromMessage(
 /**
  * Truncate tool calls in a message entry.
  * Returns the message with tool call arguments truncated and count of truncations.
+ * Truncated arguments are stored as objects with `{ _truncated: true, preview: "..." }`.
  */
 export function truncateToolCallsInMessage(message: MessageEntry): {
 	message: MessageEntry;
@@ -293,24 +295,28 @@ export function truncateToolCallsInMessage(message: MessageEntry): {
 	const processed: ContentBlock[] = content.map((block) => {
 		if (block.type !== "toolCall") return block;
 
-		// Truncate the arguments per tech-design:
+		// Truncate the arguments:
 		// 1. JSON.stringify the args
 		// 2. Truncate the string to 120 chars / 2 lines
-		// 3. Append "..." if truncated
-		// 4. Store the truncated string directly
-		const truncatedArgs = truncateArguments(block.arguments);
+		// 3. If truncated, store as { _truncated: true, preview: "..." }
+		const truncatedPreview = truncateArguments(block.arguments);
 		const originalArgs = JSON.stringify(block.arguments);
 
 		// Check if truncation actually occurred
-		if (truncatedArgs !== originalArgs) {
+		if (truncatedPreview !== originalArgs) {
 			truncatedCount++;
+			return {
+				...block,
+				// Keep as object with truncation marker
+				arguments: {
+					_truncated: true,
+					preview: truncatedPreview,
+				} as Record<string, unknown>,
+			};
 		}
 
-		return {
-			...block,
-			// Store truncated string directly (not wrapped in object)
-			arguments: truncatedArgs as unknown as Record<string, unknown>,
-		};
+		// No truncation needed, keep original
+		return block;
 	});
 
 	return {

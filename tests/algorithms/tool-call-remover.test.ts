@@ -1,17 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-	removeToolCalls,
 	classifyTurns,
+	removeToolCalls,
 } from "../../src/core/tool-call-remover.js";
 import { identifyTurnBoundaries } from "../../src/core/turn-boundary-calculator.js";
-import {
-	createSessionWithTurns,
-	createSessionWithThinking,
-} from "../fixtures/sessions.js";
 import type {
-	ResolvedToolRemovalOptions,
 	MessageEntry,
+	ResolvedToolRemovalOptions,
 } from "../../src/types/index.js";
+import {
+	createSessionWithThinking,
+	createSessionWithTurns,
+} from "../fixtures/sessions.js";
 
 describe("tool-call-remover", () => {
 	// TC-5.1a: Default keeps 20 turns with tools
@@ -220,7 +220,7 @@ describe("tool-call-remover", () => {
 
 		const result = removeToolCalls(entries, options);
 
-		// Check that truncated tool calls have arguments within limits
+		// Check that truncated tool calls have arguments as object with _truncated marker
 		for (const entry of result.processedEntries) {
 			if (entry.type !== "message") continue;
 			const content = entry.message.content;
@@ -228,20 +228,25 @@ describe("tool-call-remover", () => {
 
 			for (const block of content) {
 				if (block.type === "toolCall") {
-					// Arguments should be stored as truncated string directly
-					const argsValue = block.arguments;
-					expect(typeof argsValue).toBe("string");
-					const argsStr = argsValue as unknown as string;
+					// Arguments should be stored as object with _truncated marker
+					const argsValue = block.arguments as {
+						_truncated: boolean;
+						preview: string;
+					};
+					expect(typeof argsValue).toBe("object");
+					expect(argsValue._truncated).toBe(true);
+					expect(typeof argsValue.preview).toBe("string");
 
+					const preview = argsValue.preview;
 					// Should be max 120 chars (plus "..." marker)
-					expect(argsStr.length).toBeLessThanOrEqual(123); // 120 + "..."
+					expect(preview.length).toBeLessThanOrEqual(123); // 120 + "..."
 
 					// Should be max 2 lines
-					const lineCount = argsStr.split("\n").length;
+					const lineCount = preview.split("\n").length;
 					expect(lineCount).toBeLessThanOrEqual(2);
 
 					// Should have "..." marker appended for truncated arguments
-					expect(argsStr.endsWith("...")).toBe(true);
+					expect(preview.endsWith("...")).toBe(true);
 				}
 			}
 		}
@@ -428,8 +433,10 @@ describe("thinking-block-removal", () => {
 		expect(result.statistics.thinkingBlocksRemoved).toBe(thinkingBefore);
 	});
 
-	it("does not remove thinking blocks when no tools present", () => {
+	it("removes thinking blocks even when no tools present", () => {
 		// Create session with thinking blocks but no tools
+		// When --strip-tools is used, thinking blocks are always removed
+		// to maximize context reduction, regardless of tool presence
 		const entries = createSessionWithThinking(3, 0, true);
 
 		// Count thinking blocks before
@@ -446,6 +453,7 @@ describe("thinking-block-removal", () => {
 				}
 			}
 		}
+		expect(thinkingBefore).toBeGreaterThan(0);
 
 		const options: ResolvedToolRemovalOptions = {
 			keepTurnsWithTools: 10,
@@ -469,9 +477,9 @@ describe("thinking-block-removal", () => {
 			}
 		}
 
-		// Thinking blocks should be preserved when no tools
-		expect(thinkingAfter).toBe(thinkingBefore);
-		expect(result.statistics.thinkingBlocksRemoved).toBe(0);
+		// Thinking blocks should be removed even when no tools present
+		expect(thinkingAfter).toBe(0);
+		expect(result.statistics.thinkingBlocksRemoved).toBe(thinkingBefore);
 	});
 
 	it("reports thinkingBlocksRemoved in statistics", () => {

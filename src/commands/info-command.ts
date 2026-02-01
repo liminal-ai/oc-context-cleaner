@@ -1,17 +1,17 @@
 import { defineCommand } from "citty";
+import { getConfig } from "../config/get-config.js";
+import { OccError } from "../errors.js";
+import { getSessionPath, resolveAgentId } from "../io/paths.js";
 import { resolveSessionId } from "../io/session-discovery.js";
 import {
-	readSessionFile,
 	getSessionFileStats,
+	readSessionFile,
 } from "../io/session-file-reader.js";
-import { getSessionPath, resolveAgentId } from "../io/paths.js";
 import {
 	formatSessionInfoHuman,
 	formatSessionInfoJson,
 } from "../output/info-formatter.js";
-import type { SessionInfo, MessageEntry } from "../types/index.js";
-import { OccError } from "../errors.js";
-import { getConfig } from "../config/get-config.js";
+import type { MessageEntry, SessionInfo } from "../types/index.js";
 
 export const infoCommand = defineCommand({
 	meta: {
@@ -35,9 +35,10 @@ export const infoCommand = defineCommand({
 		},
 	},
 	async run({ args }) {
+		let outputFormat: "json" | "human" = "human";
 		try {
 			const config = await getConfig();
-			const outputFormat = args.json ? "json" : config.outputFormat;
+			outputFormat = args.json ? "json" : config.outputFormat;
 			const agentId = resolveAgentId(args.agent, config.defaultAgentId);
 			const sessionId = await resolveSessionId(
 				args.sessionId as string,
@@ -63,8 +64,8 @@ export const infoCommand = defineCommand({
 
 			process.exitCode = 0;
 		} catch (error) {
-			if (args.json) {
-				console.log(
+			if (outputFormat === "json") {
+				console.error(
 					JSON.stringify({ success: false, error: (error as Error).message }),
 				);
 			} else {

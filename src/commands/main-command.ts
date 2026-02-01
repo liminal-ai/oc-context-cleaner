@@ -1,8 +1,8 @@
 import { defineCommand } from "citty";
-import { editCommand } from "./edit-command.js";
 import { cloneCommand } from "./clone-command.js";
-import { listCommand } from "./list-command.js";
+import { editCommand } from "./edit-command.js";
 import { infoCommand } from "./info-command.js";
+import { listCommand } from "./list-command.js";
 import { restoreCommand } from "./restore-command.js";
 
 /**

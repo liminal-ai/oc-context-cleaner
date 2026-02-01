@@ -1,19 +1,19 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { vol } from "memfs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("node:fs/promises", async () => {
 	const memfs = await import("memfs");
 	return memfs.fs.promises;
 });
 
+import { serializeToJsonl } from "../../src/core/session-parser.js";
 import {
-	readSessionFile,
 	getSessionFileStats,
+	readSessionFile,
 } from "../../src/io/session-file-reader.js";
 import { formatSessionInfoJson } from "../../src/output/info-formatter.js";
-import { createSessionWithTurns } from "../fixtures/sessions.js";
-import { serializeToJsonl } from "../../src/core/session-parser.js";
 import type { SessionInfo } from "../../src/types/index.js";
+import { createSessionWithTurns } from "../fixtures/sessions.js";
 
 describe("info-command", () => {
 	const testAgentId = "main";

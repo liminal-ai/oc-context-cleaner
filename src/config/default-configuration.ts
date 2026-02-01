@@ -1,5 +1,5 @@
+import { DEFAULT_AGENT_ID, DEFAULT_STATE_DIR } from "../io/paths.js";
 import type { ResolvedConfiguration } from "../types/index.js";
-import { DEFAULT_STATE_DIR, DEFAULT_AGENT_ID } from "../io/paths.js";
 
 export const DEFAULT_CONFIGURATION: ResolvedConfiguration = {
 	stateDirectory: DEFAULT_STATE_DIR,

@@ -1,19 +1,19 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { vol } from "memfs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("node:fs/promises", async () => {
 	const memfs = await import("memfs");
 	return memfs.fs.promises;
 });
 
+import { listAvailableAgents } from "../../src/io/session-discovery.js";
 import { getSessionsSortedByTime } from "../../src/io/session-index-reader.js";
 import {
+	formatRelativeTime,
 	formatSessionListHuman,
 	formatSessionListJson,
-	formatRelativeTime,
 	truncateSessionId,
 } from "../../src/output/list-formatter.js";
-import { listAvailableAgents } from "../../src/io/session-discovery.js";
 
 describe("list-command", () => {
 	const testAgentId = "main";

@@ -1,12 +1,12 @@
 import { defineCommand } from "citty";
-import type { EditOptions } from "../types/index.js";
+import { getConfig } from "../config/get-config.js";
 import { executeEdit } from "../core/edit-operation-executor.js";
+import { OccError } from "../errors.js";
 import {
 	formatEditResultHuman,
 	formatEditResultJson,
 } from "../output/result-formatter.js";
-import { OccError } from "../errors.js";
-import { getConfig } from "../config/get-config.js";
+import type { EditOptions } from "../types/index.js";
 
 export const editCommand = defineCommand({
 	meta: {
@@ -41,10 +41,12 @@ export const editCommand = defineCommand({
 		},
 	},
 	async run({ args }) {
+		let outputFormat: "json" | "human" = "human";
+		let verbose = false;
 		try {
 			const config = await getConfig();
-			const outputFormat = args.json ? "json" : config.outputFormat;
-			const verbose = args.verbose || config.verboseOutput;
+			outputFormat = args.json ? "json" : config.outputFormat;
+			verbose = args.verbose || config.verboseOutput;
 			// Handle --strip-tools without value: citty sets it to true (boolean)
 			const presetName =
 				typeof args["strip-tools"] === "string"
@@ -71,8 +73,8 @@ export const editCommand = defineCommand({
 
 			process.exitCode = 0;
 		} catch (error) {
-			if (args.json) {
-				console.log(
+			if (outputFormat === "json") {
+				console.error(
 					JSON.stringify({ success: false, error: (error as Error).message }),
 				);
 			} else {
@@ -95,7 +97,7 @@ export const editCommand = defineCommand({
 							break;
 						case "AGENT_NOT_FOUND":
 							console.error(
-								"Hint: Check the agent ID with 'occ list --all-agents' or omit --agent to use default",
+								"Hint: Use 'occ list' to see available agents, or omit --agent to use default",
 							);
 							break;
 						case "UNKNOWN_PRESET":

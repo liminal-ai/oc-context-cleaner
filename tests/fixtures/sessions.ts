@@ -1,12 +1,12 @@
 import type {
-	SessionHeader,
-	SessionEntry,
+	ContentBlock,
 	MessageEntry,
-	ToolCallBlock,
+	SessionEntry,
+	SessionHeader,
+	SessionIndexEntry,
 	TextBlock,
 	ThinkingBlock,
-	SessionIndexEntry,
-	ContentBlock,
+	ToolCallBlock,
 } from "../../src/types/index.js";
 
 export const FIXTURE_SESSION_HEADER: SessionHeader = {

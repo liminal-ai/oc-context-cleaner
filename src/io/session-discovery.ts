@@ -1,18 +1,17 @@
-import { readdir, stat, access } from "node:fs/promises";
+import { access, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import {
-	getStateDirectory,
-	getSessionsDirectory,
-	getSessionPath,
-	resolveAgentId,
-} from "./paths.js";
-import { getSessionsSortedByTime } from "./session-index-reader.js";
-import {
-	SessionNotFoundError,
+	AgentNotFoundError,
 	AmbiguousSessionError,
 	NoSessionsError,
-	AgentNotFoundError,
+	SessionNotFoundError,
 } from "../errors.js";
+import {
+	getSessionPath,
+	getSessionsDirectory,
+	getStateDirectory,
+	resolveAgentId,
+} from "./paths.js";
 
 /**
  * Resolve a session ID (full, partial, or auto-detect).
@@ -79,6 +78,9 @@ export async function resolveSessionId(
 /**
  * Get the current session (most recently modified).
  *
+ * Prefers filesystem mtime scan for accuracy, since the index
+ * may not reflect recent edits from external tools.
+ *
  * @param agentId Agent ID
  * @param stateDir Optional state directory override from config
  * @returns Session ID of most recent session
@@ -87,13 +89,7 @@ export async function getCurrentSession(
 	agentId: string,
 	stateDir?: string,
 ): Promise<string> {
-	// First try the index
-	const sorted = await getSessionsSortedByTime(agentId, stateDir);
-	if (sorted.length > 0) {
-		return sorted[0].sessionId;
-	}
-
-	// Fall back to filesystem scan
+	// Prefer filesystem scan for accurate mtime detection
 	const sessionsDir = getSessionsDirectory(agentId, stateDir);
 	try {
 		const files = await readdir(sessionsDir);
